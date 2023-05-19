@@ -1,4 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<contentpackage name="Lua Editor" modversion="1.2.1" corepackage="False">
-  <Item file="%ModDir%/Item.xml" />
-</contentpackage>
