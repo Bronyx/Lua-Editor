@@ -37,7 +37,7 @@ FindClientCharacter = function(character)
 end
 
 local function AddMessage(text, client)
-   local message = ChatMessage.Create("", text, ChatMessageType.Default, nil, nil)
+   local message = ChatMessage.Create("Lua Editor", text, ChatMessageType.Default, nil, nil)
    message.Color = Color(255, 95, 31)
 
    if CLIENT then
@@ -81,6 +81,7 @@ if SERVER then return end
 
 	local itemname = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), "None", nil, nil, GUI.Alignment.Center)
 	itemname.TextColor = Color((255), (153), (153))
+	itemname.TextScale = 1.3
 
 	local spritedepthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.055), menuList.Content.RectTransform), "Sprite Depth", nil, nil, GUI.Alignment.Center)
 	local spritedepth = GUI.NumberInput(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), NumberType.Float)
@@ -457,7 +458,15 @@ Hook.Add("Edit", "edit", function(statusEffect, deltaTime, item)
 
 	if itemedit1 ~= nil and itemedit2 ~= nil then
 		linktargets.OnClicked = function()
-		
+			if not itemedit1.Linkable then
+				AddMessage(itemedit1.Name .. " is not Linkable", owner)
+				return
+			end
+			if not itemedit2.Linkable then
+				AddMessage(itemedit2.Name .. " is not Linkable", owner)
+				return
+			end
+				
 			if Unlink == true then
 				LinkRemove(itemedit1, itemedit2)
 				UnlinkNetwork()
@@ -512,7 +521,6 @@ end)
 	EditGUI.targetabletags.text = (tagList)
 	
 	EditGUI.targetabletags.OnTextChangedDelegate = function()
-		print("working")
 		findtarget.validTags = {}
 		for tag in string.gmatch(EditGUI.targetabletags.text, "[^,%s]+") do
 			table.insert(findtarget.validTags, tag)
