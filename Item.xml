@@ -1,6 +1,6 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Items>
-  <Item name="Lua Linker" identifier="lualinker" category="" cargocontaineridentifier="metalcrate" tags="smallitem,mountableweapon" Scale="0.12" impactsoundtag="impact_metal_light" description="A tool to link or unlink objects">
+  <Item name="Lua Editor" identifier="luaeditor" category="" cargocontaineridentifier="metalcrate" tags="smallitem,mountableweapon" Scale="0.12" impactsoundtag="impact_metal_light" description="A tool to link or unlink objects">
     <Fabricate suitablefabricators="fabricator" requiredtime="60">
       <RequiredSkill identifier="electrical" level="75" />
       <RequiredSkill identifier="mechanical" level="55" />
