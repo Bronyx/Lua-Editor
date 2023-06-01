@@ -10,6 +10,21 @@ findtarget.FindClientCharacter = function(character)
     end
 end
 
+
+
+
+
+-- was too lazy at the time to make a network file and didint feel like fixing the mess in EditGUI to make serverside stuff actaully work
+
+
+
+-- end of my lazyness 
+
+
+
+
+
+
 findtarget.cursor_pos = Vector2(0, 0)
 findtarget.cursor_updated = false
 
@@ -65,22 +80,14 @@ end
 
 
 findtarget.findtarget = function(item)
-    if CLIENT and Game.IsMultiplayer then 
-        -- for better accuracy
-        local client_cursor_pos = (item.ParentInventory.Owner).CursorWorldPosition
-        local msg = Networking.Start("lualinker.clientsidevalue")
-        msg.WriteSingle(client_cursor_pos.X)
-        msg.WriteSingle(client_cursor_pos.Y)
-        Networking.Send(msg)
-        return
-    end
-
-    -- SinglePlayer
-    if not Game.IsMultiplayer then
+	cursor_updated = false
+    if Client then
         findtarget.cursor_pos = item.ParentInventory.Owner.CursorWorldPosition
+		cursor_updated = true
     end
+	
     -- fallback
-    if not findtarget.cursor_updated and Game.IsMultiplayer then
+    if not cursor_updated and Game.IsMultiplayer then
         findtarget.cursor_pos = item.WorldPosition
     end
 
@@ -89,11 +96,5 @@ findtarget.findtarget = function(item)
     local target = FindClosestItem(item.Submarine, findtarget.cursor_pos)
     return target
 end
-
-Networking.Receive("lualinker.clientsidevalue", function(msg)
-    local position = Vector2(msg.ReadSingle(), msg.ReadSingle())
-    findtarget.cursor_pos = position
-    findtarget.cursor_updated = true
-end)
 
 return findtarget
