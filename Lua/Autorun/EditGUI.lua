@@ -1,32 +1,116 @@
 local findtarget = dofile(... .. "/Lua/findtarget.lua")
+
 	EditGUI = {}
 	
-UnlinkNetwork = function()
-	if SERVER then
-		-- lets send a net message to all clients so they remove our link
+local function LinkAdd(itemedit1, itemedit2)
+    itemedit1.AddLinked(itemedit2)
+    itemedit2.AddLinked(itemedit1)
+end
+
+local function LinkRemove(itemedit1, itemedit2)
+    itemedit1.RemoveLinked(itemedit2)
+    itemedit2.RemoveLinked(itemedit1)
+end
+
+
+if SERVER then 
+
+    Networking.Receive("servermsgstart", function (itemeditnetwork)
+        local itemedit = Entity.FindEntityByID(itemeditnetwork.ReadUInt16())
+		
+		itemedit.SpriteDepth = itemeditnetwork.ReadSingle()
+		itemedit.Rotation = itemeditnetwork.ReadSingle()
+		itemedit.Scale = itemeditnetwork.ReadSingle()
+		itemedit.SpriteColor = itemeditnetwork.ReadColorR8G8B8()
+		itemedit.Tags = itemeditnetwork.ReadString()
+		itemedit.DisplaySideBySideWhenLinked = itemeditnetwork.ReadBoolean()
+		itemedit.NonInteractable = itemeditnetwork.ReadBoolean()
+		
+		holdable = itemeditnetwork.ReadBoolean()
+		connectionpanel = itemeditnetwork.ReadBoolean()
+		
+		if holdable == true then
+			itemedit.GetComponentString("Holdable").CanBePicked = itemeditnetwork.ReadBoolean()
+		end
+		
+		if connectionpanel == true then
+			itemedit.GetComponentString("ConnectionPanel").Locked = itemeditnetwork.ReadBoolean()
+		end
+		
+		local itemupdate = Networking.Start("updateitem")
+			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("SpriteDepth")], itemedit))
+			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("Rotation")], itemedit))
+			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("Scale")], itemedit))
+			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("SpriteColor")], itemedit))
+			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("Tags")], itemedit))
+			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("DisplaySideBySideWhenLinked")], itemedit))
+			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("NonInteractable")], itemedit))
+		
+			if holdable == true then
+				itemupdate.WriteBoolean(itemedit.GetComponentString("Holdable").CanBePicked)
+			end
+			
+			if connectionpanel == true then
+				itemupdate.WriteBoolean(itemedit.GetComponentString("ConnectionPanel").Locked)
+			end
+			
+			Networking.Send(itemupdate)
+	end)
+
+	Networking.Receive("flipxnetwork", function (mirrorx)
+        local itemedit = Entity.FindEntityByID(mirrorx.ReadUInt16())
+		
+		if itemedit then
+			itemedit.FlipX(false)
+		
+			local flipx = Networking.Start("flipxclientnetwork")
+				flipx.WriteUInt16(UShort(itemedit.ID))
+			Networking.Send(flipx)
+		end
+		
+	end)
+	
+
+	Networking.Receive("flipynetwork", function (mirrory)
+        local itemedit = Entity.FindEntityByID(mirrory.ReadUInt16())
+		
+		if itemedit then
+			itemedit.FlipY(false)
+		
+			local flipy = Networking.Start("flipyclientnetwork")
+				flipy.WriteUInt16(UShort(itemedit.ID))
+			Networking.Send(flipy)
+		end
+		
+	end)
+	
+	
+	Networking.Receive("linkremove", function (msg)
+
+        local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
+        local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
+        LinkRemove(itemedit1, itemedit2)
+
 		local msg = Networking.Start("lualinker.remove")
-		msg.WriteUInt16(UShort(itemedit1.ID))
-		msg.WriteUInt16(UShort(itemedit2.ID))
+			msg.WriteUInt16(UShort(itemedit1.ID))
+			msg.WriteUInt16(UShort(itemedit2.ID))
 		Networking.Send(msg)
-    end
-end
+	end)
 
-LinkNetwork = function()
-    if SERVER then
-        -- lets send a net message to all clients so they add our link
-        local msg = Networking.Start("lualinker.add")
-        msg.WriteUInt16(UShort(itemedit1.ID))
-        msg.WriteUInt16(UShort(itemedit2.ID))
-        Networking.Send(msg)
-    end
-end
+	Networking.Receive("linkadd", function (msg)
 
-network = function(itemedit)
-	if SERVER then
-		property = itemedit.SerializableProperties[Identifier("Test")]
-		Networking.CreateEntityEvent(itemedit, itemedit.ChangePropertyEventData(property, itemedit))
-	end
-end
+        local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
+        local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
+        LinkAdd(itemedit1, itemedit2)
+
+		local msg = Networking.Start("lualinker.add")
+			msg.WriteUInt16(UShort(itemedit1.ID))
+			msg.WriteUInt16(UShort(itemedit2.ID))
+		Networking.Send(msg)
+
+	end)
+
+else
 
 FindClientCharacter = function(character)  
     for key, value in pairs(Client.ClientList) do
@@ -47,7 +131,10 @@ local function AddMessage(text, client)
    end
 end
 
-if SERVER then return end
+
+
+
+
 
 	local modPath = ...
 
@@ -144,6 +231,7 @@ if SERVER then return end
 	misclayout.Stretch = true
 	misclayout.RelativeSpacing = 0.004
 
+	local apply = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "Apply")
 	local linktargets = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "None")
 	local clear = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "Clear")
 	local settings = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "Settings")
@@ -177,14 +265,14 @@ if SERVER then return end
 
 	Links = function()
 		local isLinked = false
-	
+    
 		for key, value in pairs(itemedit1.linkedTo) do
 			if value == itemedit2 then
 				isLinked = true
 				break
 			end
 		end
-	
+    
 		if isLinked then
 			Unlink = true
 			linktargets.Text = "Unlink"
@@ -268,196 +356,223 @@ if SERVER then return end
 		Links()
 	end
 
-Hook.Add("Edit", "edit", function(statusEffect, deltaTime, item)
-	local owner = FindClientCharacter(item.ParentInventory.Owner)
-	local target = findtarget.findtarget(item)
+	Hook.Add("Edit", "edit", function(statusEffect, deltaTime, item)
+		local owner = FindClientCharacter(item.ParentInventory.Owner)
+		local target = findtarget.findtarget(item)
+		-- Start Of Checks
 	
-	-- Start Of Checks
+		if item.ParentInventory.Owner ~= Character.Controlled then
+			menu.Visible = false
+			return
+		end
+		
 	
-	if Game.IsMultiplayer and owner.Permissions == 0 then
-		AddMessage("Insuffient Permissions", owner)
-		return
-	end
-	
-    if not menu.Visible then
-		menu.Visible = not menu.Visible
-    end
-	
-    if target == nil then
-        AddMessage("No item found", owner)
-        return
-    end
-	
-    if target == itemedit1 or target == itemedit2 then
-        AddMessage("Please Choose Another Item", owner)
-        return
-    end
-	
-    if check == true then
-        itemedit1 = target
-		itemname.Text = itemedit1.Name
-		itemeditbutton1.Text = itemedit1.Name
-		itemedit = itemedit1
-		check = false
-    else
-        itemedit2 = target
-		itemeditbutton2.Text = itemedit2.Name
-		check = true
-	end
-	
-	if itemedit == nil then
-		return
-	end
-	
-	-- End Of Checks
-	
-	if hidden == false then
-		Component()
-	end
-	
-	if itemedit2 == nil then
-	
-	else
-	Links()
-	end
+		if Game.IsMultiplayer and owner.Permissions == 0 then
+			AddMessage("Insuffient Permissions", owner)
+			return
+		end
 
-	itemeditbutton1.OnClicked = function()
-		if itemedit1 == nil then
-		else
+		if not menu.Visible then
+			menu.Visible = not menu.Visible
+		end
+	
+		if target == nil then
+			AddMessage("No item found", owner)
+			return
+		end
+	
+		if target == itemedit1 or target == itemedit2 then
+			AddMessage("Please Choose Another Item", owner)
+			return
+		end
+	
+		if check == true then
+			itemedit1 = target
 			itemname.Text = itemedit1.Name
+			itemeditbutton1.Text = itemedit1.Name
 			itemedit = itemedit1
-			hidden = false
-			reloadvalues()
-			valuetrue()
-			settingsmenu = false
-			settingmenu()
-		end
-	end
-	
-	itemeditbutton2.OnClicked = function()	
-		if itemedit2 == nil then
+			check = false
 		else
-			itemname.Text = itemedit2.Name
-			itemedit = itemedit2
-			hidden = false
-			reloadvalues()
-			valuetrue()
-			settingsmenu = false
-			settingmenu()
+			itemedit2 = target
+			itemeditbutton2.Text = itemedit2.Name
+			check = true
 		end
-	end
+	
+		if itemedit == nil then
+			return
+		end
+	
+		-- End Of Checks
+
+	
+		if hidden == false then
+			Component()
+		end
+	
+		if itemedit2 == nil then
+	
+		else
+		Links()
+		end
+	
+		itemeditbutton1.OnClicked = function()
+			if itemedit1 == nil then
+			else
+				itemname.Text = itemedit1.Name
+				itemedit = itemedit1
+				hidden = false
+				reloadvalues()
+				valuetrue()
+				settingsmenu = false
+				settingmenu()
+			end
+		end
+	
+		itemeditbutton2.OnClicked = function()	
+			if itemedit2 == nil then
+			else
+				itemname.Text = itemedit2.Name
+				itemedit = itemedit2
+				hidden = false
+				reloadvalues()
+				valuetrue()
+				settingsmenu = false
+				settingmenu()
+			end
+		end
 		
-	local function LinkAdd(itemedit1, itemedit2)
-		itemedit1.AddLinked(itemedit2)
-		itemedit2.AddLinked(itemedit1)
-	end
+		-- Start Of Values
 
-	local function LinkRemove(itemedit1, itemedit2)
-		itemedit1.RemoveLinked(itemedit2)
-		itemedit2.RemoveLinked(itemedit1)
-	end
+		spritedepth.FloatValue = itemedit.SpriteDepth * 1000
+		spritedepth.MinValueFloat = 100
+		spritedepth.MaxValueFloat = 900
+		spritedepth.valueStep = 50
+		spritedepth.OnValueChanged = function ()
+			itemedit.SpriteDepth = spritedepth.FloatValue / 1000
+		end
 		
-	-- Start Of Values
-
-	spritedepth.FloatValue = itemedit.SpriteDepth * 1000
-	spritedepth.MinValueFloat = 100
-	spritedepth.MaxValueFloat = 900
-	spritedepth.valueStep = 50
-	spritedepth.OnValueChanged = function ()
-		itemedit.SpriteDepth = spritedepth.FloatValue / 1000
-		network(itemedit)
-	end
 	
-	rotation.IntValue = itemedit.Rotation
-	rotation.MinValueInt = 0
-	rotation.MaxValueInt = 360
-	rotation.valueStep = 10
-	rotation.OnValueChanged = function ()
-		itemedit.Rotation = rotation.IntValue
-		network(itemedit)
-	end
-	
-	scale.FloatValue = itemedit.Scale * 1000
-	scale.MinValueFloat = 400
-	scale.MaxValueFloat = 600
-	scale.valueStep = 50
-	scale.OnValueChanged = function ()
-		itemedit.Scale = scale.FloatValue / 1000
-		network(itemedit)
-	end
-	
-	red.IntValue, green.IntValue, blue.IntValue = itemedit.SpriteColor.R,itemedit.SpriteColor.G,itemedit.SpriteColor.B
-	red.MinValueInt = 0
-	green.MinValueInt = 0
-	blue.MinValueInt = 0
-	red.MaxValueInt = 255
-	green.MaxValueInt = 255
-	blue.MaxValueInt = 255
-	red.OnValueChanged = function ()
-		itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
-		network(itemedit)
-	end
-	green.OnValueChanged = function ()
-		itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
-		network(itemedit)
-	end
-	blue.OnValueChanged = function ()
-		itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
-		network(itemedit)
-	end
-
-
-	mirrorButtonx.OnClicked = function()
-		if itemedit then
-			itemedit.FlipX(false)
-			network(itemedit)
+		rotation.IntValue = itemedit.Rotation
+		rotation.MinValueInt = 0
+		rotation.MaxValueInt = 360
+		rotation.valueStep = 10
+		rotation.OnValueChanged = function ()
+			itemedit.Rotation = rotation.IntValue
 		end
-	end
-
-	mirrorButtony.OnClicked = function()
-		if itemedit then
-			itemedit.FlipY(false)
-			network(itemedit)
+	
+		scale.FloatValue = itemedit.Scale * 1000
+		scale.MinValueFloat = 400
+		scale.MaxValueFloat = 600
+		scale.valueStep = 50
+		scale.OnValueChanged = function ()
+			itemedit.Scale = scale.FloatValue / 1000
 		end
-	end
 	
-	tagstext.Text = itemedit.Tags
-	tagstext.OnTextChangedDelegate = function (tagstext)
-		itemedit.Tags = tagstext.Text
-		network(itemedit)
-	end
-
-	display.Selected = itemedit.DisplaySideBySideWhenLinked
-	display.OnSelected = function ()
-		itemedit.DisplaySideBySideWhenLinked = display.Selected == true
-		network(itemedit)
-	end
-
-	noninteractable.Selected = itemedit.NonInteractable
-	noninteractable.OnSelected = function ()
-		itemedit.NonInteractable = noninteractable.Selected == true
-		network(itemedit)
-	end
-	
-	if holdable == true then
-		canbepicked.Selected = itemedit.GetComponentString("Holdable").CanBePicked
-		canbepicked.OnSelected = function ()
-			itemedit.GetComponentString("Holdable").CanBePicked = canbepicked.Selected == true
-			network(itemedit)
+		red.IntValue, green.IntValue, blue.IntValue = itemedit.SpriteColor.R,itemedit.SpriteColor.G,itemedit.SpriteColor.B
+		red.MinValueInt = 0
+		green.MinValueInt = 0
+		blue.MinValueInt = 0
+		red.MaxValueInt = 255
+		green.MaxValueInt = 255
+		blue.MaxValueInt = 255
+		red.OnValueChanged = function ()
+			itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
 		end
-	end
-	
-	
-	if connectionpanel == true then
-		locked.Selected = itemedit.GetComponentString("ConnectionPanel").Locked
-		locked.OnSelected = function ()
-			itemedit.GetComponentString("ConnectionPanel").Locked = locked.Selected == true
-			network(itemedit)
+		green.OnValueChanged = function ()
+			itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
 		end
-	end
+		blue.OnValueChanged = function ()
+			itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
+		end
 
-	if itemedit1 ~= nil and itemedit2 ~= nil then
+
+		mirrorButtonx.OnClicked = function()
+			if itemedit then
+				if CLIENT and Game.IsMultiplayer then
+					mirrorx = Networking.Start("flipxnetwork")
+					mirrorx.WriteUInt16(UShort(itemedit.ID))
+					Networking.Send(mirrorx)
+				else
+					itemedit.FlipX(false)
+				end
+			end
+		end
+
+		mirrorButtony.OnClicked = function()
+			if itemedit then
+				if CLIENT and Game.IsMultiplayer then
+					mirrory = Networking.Start("flipynetwork")
+					mirrory.WriteUInt16(UShort(itemedit.ID))
+					Networking.Send(mirrory)
+				else
+					itemedit.FlipY(false)
+				end
+			end
+		end
+	
+		tagstext.Text = itemedit.Tags
+		tagstext.OnTextChangedDelegate = function (tagstext)
+			itemedit.Tags = tagstext.Text
+		end
+
+		display.Selected = itemedit.DisplaySideBySideWhenLinked
+		display.OnSelected = function ()
+			itemedit.DisplaySideBySideWhenLinked = display.Selected == true
+		end
+
+		noninteractable.Selected = itemedit.NonInteractable
+		noninteractable.OnSelected = function ()
+			itemedit.NonInteractable = noninteractable.Selected == true
+		end
+	
+		if holdable == true then
+			canbepicked.Selected = itemedit.GetComponentString("Holdable").CanBePicked
+			canbepicked.OnSelected = function ()
+				itemedit.GetComponentString("Holdable").CanBePicked = canbepicked.Selected == true
+			end
+		end
+	
+	
+		if connectionpanel == true then
+			locked.Selected = itemedit.GetComponentString("ConnectionPanel").Locked
+			locked.OnSelected = function ()
+				itemedit.GetComponentString("ConnectionPanel").Locked = locked.Selected == true
+			end
+		end
+		
+		apply.OnClicked = function()
+			if itemedit == nil then 
+				return
+			end
+			
+			if CLIENT and Game.IsMultiplayer then
+				itemeditnetwork = Networking.Start("servermsgstart")
+					itemeditnetwork.WriteUInt16(UShort(itemedit.ID))
+					itemeditnetwork.WriteSingle(itemedit.SpriteDepth)
+					itemeditnetwork.WriteSingle(itemedit.Rotation)
+					itemeditnetwork.WriteSingle(itemedit.Scale)
+					itemeditnetwork.WriteColorR8G8B8(itemedit.SpriteColor)
+					itemeditnetwork.WriteString(itemedit.Tags)
+					itemeditnetwork.WriteBoolean(itemedit.DisplaySideBySideWhenLinked)
+					itemeditnetwork.WriteBoolean(itemedit.NonInteractable)
+					itemeditnetwork.WriteBoolean(holdable)
+					itemeditnetwork.WriteBoolean(connectionpanel)
+					if holdable == true then
+						itemeditnetwork.WriteBoolean(itemedit.GetComponentString("Holdable").CanBePicked)
+					end
+					if connectionpanel == true then
+						itemeditnetwork.WriteBoolean(itemedit.GetComponentString("ConnectionPanel").Locked)
+					end
+					Networking.Send(itemeditnetwork)
+			end
+		end
+
+
 		linktargets.OnClicked = function()
+			if itemedit1 == nil or itemedit2 == nil then
+				return
+			end
+		
 			if not itemedit1.Linkable then
 				AddMessage(itemedit1.Name .. " is not Linkable", owner)
 				return
@@ -466,36 +581,54 @@ Hook.Add("Edit", "edit", function(statusEffect, deltaTime, item)
 				AddMessage(itemedit2.Name .. " is not Linkable", owner)
 				return
 			end
-				
+			
 			if Unlink == true then
-				LinkRemove(itemedit1, itemedit2)
-				UnlinkNetwork()
+				if CLIENT and Game.IsMultiplayer then
+					local msg = Networking.Start("linkremove")
+						msg.WriteUInt16(UShort(itemedit1.ID))
+						msg.WriteUInt16(UShort(itemedit2.ID))
+					Networking.Send(msg)
+					links = true
+				else
+				itemedit1.RemoveLinked(itemedit2)
+				itemedit2.RemoveLinked(itemedit1)
 				Links()
+				end
 			else
-				LinkAdd(itemedit1, itemedit2)
-				LinkNetwork()
+				if CLIENT and Game.IsMultiplayer then
+					local msg = Networking.Start("linkadd")
+						msg.WriteUInt16(UShort(itemedit1.ID))
+						msg.WriteUInt16(UShort(itemedit2.ID))
+					Networking.Send(msg)
+					links = true
+				else
+				itemedit1.AddLinked(itemedit2)
+				itemedit2.AddLinked(itemedit1)
 				Links()
+				end
 			end
 		end
-	end
+		
 
-	clear.OnClicked = function()
-		hidden = true
-		check = true
-		valuefalse()
-		itemedit = nil
-		itemedit1 = nil
-		itemedit2 = nil
-		itemname.Text = "None"
-		linktargets.Text = "None"
-		itemeditbutton1.Text = "None"
-		itemeditbutton2.Text = "None"
-	end
+		clear.OnClicked = function()
+			hidden = true
+			check = true
+			valuefalse()
+			connectionpanel = false
+			holdable = false
+			itemedit = nil
+			itemedit1 = nil
+			itemedit2 = nil
+			itemname.Text = "None"
+			linktargets.Text = "None"
+			itemeditbutton1.Text = "None"
+			itemeditbutton2.Text = "None"
+		end
 
 	
-	-- End Of Values
+		-- End Of Values
 	
-end)
+	end)
 
 
 	settings.OnClicked = function()
@@ -528,10 +661,63 @@ end)
 	end
 	
 	
-Hook.Patch("Barotrauma.GameScreen", "AddToGUIUpdateList", function()
-    frame.AddToGUIUpdateList()
-end)
+	Hook.Patch("Barotrauma.GameScreen", "AddToGUIUpdateList", function()
+		frame.AddToGUIUpdateList()
+	end)
 
-Hook.Patch("Barotrauma.SubEditorScreen", "AddToGUIUpdateList", function()
-    frame.AddToGUIUpdateList()
-end)
+	Hook.Patch("Barotrauma.SubEditorScreen", "AddToGUIUpdateList", function()
+		frame.AddToGUIUpdateList()
+	end)
+		
+	
+	if CLIENT and Game.IsMultiplayer then
+	
+		Networking.Receive("flipxclientnetwork", function (flipx)
+		local itemedit = Entity.FindEntityByID(flipx.ReadUInt16())
+		if itemedit then
+			itemedit.FlipX(false)
+		end
+		end)
+	
+		Networking.Receive("flipyclientnetwork", function (flipy)
+		local itemedit = Entity.FindEntityByID(flipy.ReadUInt16())
+		if itemedit then
+			itemedit.FlipY(false)
+		end
+		end)
+	
+		Networking.Receive("lualinker.add", function (msg)
+			local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
+			local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
+			LinkAdd(itemedit1, itemedit2)
+			if links == true then
+				Links()
+			end
+		end)
+
+		Networking.Receive("lualinker.remove", function (msg)
+			local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
+			local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
+			LinkRemove(itemedit1, itemedit2)
+			if links == true then
+				Links()
+			end
+		end)
+	end
+	
+	
+	if CLIENT and Game.IsMultiplayer then
+		Networking.Receive("updateitem", function (itemupdate)
+			
+			if holdable == true then
+				itemedit.GetComponentString("Holdable").CanBePicked = itemupdate.ReadBoolean()
+			end
+			
+			if connectionpanel == true then
+				itemedit.GetComponentString("ConnectionPanel").Locked = itemupdate.ReadBoolean()
+			end
+			
+		end)
+	end
+	
+end
