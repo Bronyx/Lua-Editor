@@ -1,6 +1,0 @@
-
-add a new setting for editing permissions to open menu
-
-make settings menu look better
-
-add more color to the menu
