@@ -1,4 +1,4 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<contentpackage name="Lua Editor" modversion="1.2.1" corepackage="False">
+<contentpackage name="Lua Editor" modversion="1.0.7" corepackage="False" steamworkshopid="2983569829" gameversion="1.0.21.0">
   <Item file="%ModDir%/Item.xml" />
 </contentpackage>
