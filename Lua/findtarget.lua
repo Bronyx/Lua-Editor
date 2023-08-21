@@ -14,30 +14,40 @@ end
 
 
 
--- was too lazy at the time to make a network file and didint feel like fixing the mess in EditGUI to make serverside stuff actaully work
-
-
-
--- end of my lazyness 
-
-
-
-
-
 
 findtarget.cursor_pos = Vector2(0, 0)
 findtarget.cursor_updated = false
 
-findtarget.validTags = {"notlualinkable"}
+local function StringToTable(inputString)
+    local result = {}
+    
+    for value in inputString:gmatch("[^,]+") do
+        table.insert(result, value)
+    end
+    
+    return result
+end
 
 local function FindClosestItem(submarine, position)
     local closest = nil
     for key, value in pairs(submarine and submarine.GetItems(false) or Item.ItemList) do
-        if EditGUI.targetnoninteractable.Selected == true then
-            targetnoninter = value.NonInteractable == true
-        else
-            targetnoninter = value.NonInteractable == false
-        end
+		if EditGUI.Settings.allowtargetingnoninteractable == true then
+			if EditGUI.ClientsideSettings.targetnoninteractable == "False" then
+				targetnoninter = value.NonInteractable == false
+			elseif EditGUI.ClientsideSettings.targetnoninteractable == "Target Both" then
+				targetnoninter = value.NonInteractable == false or true
+			elseif EditGUI.ClientsideSettings.targetnoninteractable == "Target Only Non Interactable" then
+				targetnoninter = value.NonInteractable == true
+			end
+		else
+			targetnoninter = value.NonInteractable == false
+		end
+		
+		if EditGUI.Settings.allowtargetingitems == true then
+			targetitems = EditGUI.ClientsideSettings.targetitems
+		else
+			targetitems = false
+		end
         
         -- Check if the item has a parent inventory
         local hasParentInventory = value.ParentInventory ~= nil
@@ -45,7 +55,7 @@ local function FindClosestItem(submarine, position)
         -- Skip items with parent inventories
         if not hasParentInventory then
             local hasValidTag = true
-            for _, tag in ipairs(findtarget.validTags) do
+            for _, tag in ipairs(StringToTable(EditGUI.Settings.tagstonottarget)) do
                 if value.HasTag(tag) then
                     hasValidTag = false
                     break
@@ -56,13 +66,17 @@ local function FindClosestItem(submarine, position)
                 -- check if placable or if it does not have holdable component
                 local check_if_p_or_nh = false
                 local holdable = value.GetComponentString("Holdable")
-                if holdable == nil then
-                    check_if_p_or_nh = true
-                else
-                    if holdable.attachable == true then
-                        check_if_p_or_nh = true
-                    end
-                end
+				if targetitems == false then
+					if holdable == nil then
+						check_if_p_or_nh = true
+					else
+						if holdable.attachable == true then
+							check_if_p_or_nh = true
+						end
+					end
+				else
+					check_if_p_or_nh = true
+				end
                 if check_if_p_or_nh == true then
                     if Vector2.Distance(position, value.WorldPosition) < 100 then
                         if closest == nil then closest = value end

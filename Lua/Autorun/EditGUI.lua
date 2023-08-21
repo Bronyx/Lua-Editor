@@ -1,118 +1,38 @@
-local findtarget = dofile(... .. "/Lua/findtarget.lua")
+EditGUI = {}
+EditGUI.Path = ...
 
-	EditGUI = {}
+local network = dofile(EditGUI.Path .. "/Lua/networking.lua")
+local findtarget = dofile(EditGUI.Path .. "/Lua/findtarget.lua")
 	
-local function LinkAdd(itemedit1, itemedit2)
+LinkAdd = function(itemedit1, itemedit2)
     itemedit1.AddLinked(itemedit2)
     itemedit2.AddLinked(itemedit1)
 end
 
-local function LinkRemove(itemedit1, itemedit2)
+LinkRemove = function(itemedit1, itemedit2)
     itemedit1.RemoveLinked(itemedit2)
     itemedit2.RemoveLinked(itemedit1)
 end
 
+if SERVER then
+	return
+end
 
-if SERVER then 
+local check = true
 
-    Networking.Receive("servermsgstart", function (itemeditnetwork)
-        local itemedit = Entity.FindEntityByID(itemeditnetwork.ReadUInt16())
-		
-		itemedit.SpriteDepth = itemeditnetwork.ReadSingle()
-		itemedit.Rotation = itemeditnetwork.ReadSingle()
-		itemedit.Scale = itemeditnetwork.ReadSingle()
-		itemedit.SpriteColor = itemeditnetwork.ReadColorR8G8B8()
-		itemedit.Tags = itemeditnetwork.ReadString()
-		itemedit.DisplaySideBySideWhenLinked = itemeditnetwork.ReadBoolean()
-		itemedit.NonInteractable = itemeditnetwork.ReadBoolean()
-		
-		holdable = itemeditnetwork.ReadBoolean()
-		connectionpanel = itemeditnetwork.ReadBoolean()
-		
-		if holdable == true then
-			itemedit.GetComponentString("Holdable").CanBePicked = itemeditnetwork.ReadBoolean()
-		end
-		
-		if connectionpanel == true then
-			itemedit.GetComponentString("ConnectionPanel").Locked = itemeditnetwork.ReadBoolean()
-		end
-		
-		local itemupdate = Networking.Start("updateitem")
-			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("SpriteDepth")], itemedit))
-			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("Rotation")], itemedit))
-			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("Scale")], itemedit))
-			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("SpriteColor")], itemedit))
-			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("Tags")], itemedit))
-			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("DisplaySideBySideWhenLinked")], itemedit))
-			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("NonInteractable")], itemedit))
-		
-			if holdable == true then
-				itemupdate.WriteBoolean(itemedit.GetComponentString("Holdable").CanBePicked)
-			end
-			
-			if connectionpanel == true then
-				itemupdate.WriteBoolean(itemedit.GetComponentString("ConnectionPanel").Locked)
-			end
-			
-			Networking.Send(itemupdate)
-	end)
+if not Game.IsMultiplayer then
+	if not File.Exists(EditGUI.Path .. "/settings.json") then
+		File.Write(EditGUI.Path .. "/settings.json", json.serialize(dofile(EditGUI.Path .. "/Lua/defaultsettings.lua")))
+	end
+	EditGUI.Settings = json.parse(File.Read(EditGUI.Path .. "/settings.json"))
+end
 
-	Networking.Receive("flipxnetwork", function (mirrorx)
-        local itemedit = Entity.FindEntityByID(mirrorx.ReadUInt16())
-		
-		if itemedit then
-			itemedit.FlipX(false)
-		
-			local flipx = Networking.Start("flipxclientnetwork")
-				flipx.WriteUInt16(UShort(itemedit.ID))
-			Networking.Send(flipx)
-		end
-		
-	end)
-	
+if not File.Exists(EditGUI.Path .. "/clientsidesettings.json") then
+	File.Write(EditGUI.Path .. "/clientsidesettings.json", json.serialize(dofile(EditGUI.Path .. "/Lua/defaultclientsidesettings.lua")))
+end
+EditGUI.ClientsideSettings = json.parse(File.Read(EditGUI.Path .. "/clientsidesettings.json"))
 
-	Networking.Receive("flipynetwork", function (mirrory)
-        local itemedit = Entity.FindEntityByID(mirrory.ReadUInt16())
-		
-		if itemedit then
-			itemedit.FlipY(false)
-		
-			local flipy = Networking.Start("flipyclientnetwork")
-				flipy.WriteUInt16(UShort(itemedit.ID))
-			Networking.Send(flipy)
-		end
-		
-	end)
-	
-	
-	Networking.Receive("linkremove", function (msg)
-
-        local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
-        local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
-        LinkRemove(itemedit1, itemedit2)
-
-		local msg = Networking.Start("lualinker.remove")
-			msg.WriteUInt16(UShort(itemedit1.ID))
-			msg.WriteUInt16(UShort(itemedit2.ID))
-		Networking.Send(msg)
-	end)
-
-	Networking.Receive("linkadd", function (msg)
-
-        local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
-        local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
-        LinkAdd(itemedit1, itemedit2)
-
-		local msg = Networking.Start("lualinker.add")
-			msg.WriteUInt16(UShort(itemedit1.ID))
-			msg.WriteUInt16(UShort(itemedit2.ID))
-		Networking.Send(msg)
-
-	end)
-
-else
-
-FindClientCharacter = function(character)  
+local FindClientCharacter = function(character)  
     for key, value in pairs(Client.ClientList) do
         if value.Character == character then
             return value
@@ -120,8 +40,8 @@ FindClientCharacter = function(character)
     end
 end
 
-local function AddMessage(text, client)
-   local message = ChatMessage.Create("Lua Editor", text, ChatMessageType.Default, nil, nil)
+EditGUI.AddMessage = function(text, client)
+   message = ChatMessage.Create("Lua Editor", text, ChatMessageType.Default, nil, nil)
    message.Color = Color(255, 95, 31)
 
    if CLIENT then
@@ -132,453 +52,5095 @@ local function AddMessage(text, client)
 end
 
 
-
-
-
-
-	local modPath = ...
-
-	local frame = GUI.Frame(GUI.RectTransform(Vector2(1, 1)), nil)
+	frame = GUI.Frame(GUI.RectTransform(Vector2(1, 1)), nil)
 	frame.CanBeFocused = false
 
+	-- Main Component Start --
+	local MainComponentfunction = function()
 
-	local menu = GUI.Frame(GUI.RectTransform(Vector2(0.5, 1), frame.RectTransform, GUI.Anchor.CenterRight), nil)
-	menu.CanBeFocused = false
-	menu.Visible = false
-	menu.RectTransform.AbsoluteOffset = Point(0, -40)
+		menu = GUI.Frame(GUI.RectTransform(Vector2(0.55, 1.1), frame.RectTransform, GUI.Anchor.CenterRight), nil)
+		menu.CanBeFocused = false
+		menu.RectTransform.AbsoluteOffset = Point(0, -40)
 
-	local menuContent = GUI.Frame(GUI.RectTransform(Vector2(0.4, 0.6), menu.RectTransform, GUI.Anchor.CenterRight))
+		menuContent = GUI.Frame(GUI.RectTransform(Vector2(0.45, 0.6), menu.RectTransform, GUI.Anchor.CenterRight))
 
-	local targets = GUI.ListBox(GUI.RectTransform(Vector2(0.93, 0.1), menuContent.RectTransform, GUI.Anchor.TopCenter))
-	targets.RectTransform.AbsoluteOffset = Point(0, 17)
-
-	GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.3), targets.Content.RectTransform), "Choose What Item To Edit", nil, nil, GUI.Alignment.Center)
-
-	local itemeditlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.5), targets.Content.RectTransform), nil)
-	itemeditlayout.isHorizontal = true
-	itemeditlayout.Stretch = true
-	itemeditlayout.RelativeSpacing = 0.008
-
-
-	local itemeditbutton1 = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), itemeditlayout.RectTransform), "None")
-	local itemeditbutton2 = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), itemeditlayout.RectTransform), "None")
-
-	local menuList = GUI.ListBox(GUI.RectTransform(Vector2(0.93, 0.7), menuContent.RectTransform, GUI.Anchor.Center))
-	menuList.RectTransform.AbsoluteOffset = Point(0, -17)
-
-	local itemname = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), "None", nil, nil, GUI.Alignment.Center)
-	itemname.TextColor = Color((255), (153), (153))
-	itemname.TextScale = 1.3
-
-	local spritedepthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.055), menuList.Content.RectTransform), "Sprite Depth", nil, nil, GUI.Alignment.Center)
-	local spritedepth = GUI.NumberInput(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), NumberType.Float)
-
-	local rotationtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.035), menuList.Content.RectTransform), "Rotation", nil, nil, GUI.Alignment.Center)
-	local rotation = GUI.NumberInput(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), NumberType.Int)
-
-	local scaletext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.035), menuList.Content.RectTransform), "Scale", nil, nil, GUI.Alignment.Center)
-	local scale = GUI.NumberInput(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), NumberType.Float)
-
-
-	local spritecolortext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.05), menuList.Content.RectTransform), "Sprite Color", nil, nil, GUI.Alignment.Center)
-	local colorlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), menuList.Content.RectTransform), nil)
-	colorlayout.isHorizontal = true
-	colorlayout.Stretch = true
-	colorlayout.RelativeSpacing = 0.001
-
-	local redtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.01, 0.01), colorlayout.RectTransform), "R", nil, nil, GUI.Alignment.BottomCenter)
-	local red = GUI.NumberInput(GUI.RectTransform(Vector2(0.05, 0.1), colorlayout.RectTransform), NumberType.Int)
-	local greentext = GUI.TextBlock(GUI.RectTransform(Vector2(0.01, 0.01), colorlayout.RectTransform), "G", nil, nil, GUI.Alignment.BottomCenter)
-	local green = GUI.NumberInput(GUI.RectTransform(Vector2(0.05, 0.1), colorlayout.RectTransform), NumberType.Int)
-	local bluetext = GUI.TextBlock(GUI.RectTransform(Vector2(0.01, 0.01), colorlayout.RectTransform), "B", nil, nil, GUI.Alignment.BottomCenter)
-	local blue = GUI.NumberInput(GUI.RectTransform(Vector2(0.05, 0.1), colorlayout.RectTransform), NumberType.Int)
-
-	local tagstextblock = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.055), menuList.Content.RectTransform), "Tags", nil, nil, GUI.Alignment.Center)
-	local tagstext = GUI.TextBox(GUI.RectTransform(Vector2(1, 0.2), menuList.Content.RectTransform), "")
-
-	local display = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), menuList.Content.RectTransform), "Display Side By Side When Linked")
+		menuList = GUI.ListBox(GUI.RectTransform(Vector2(0.93, 0.7), menuContent.RectTransform, GUI.Anchor.Center))
+		menuList.RectTransform.AbsoluteOffset = Point(0, -17)
 	
-	local noninteractable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), menuList.Content.RectTransform), "Non Interactable")
-	
-	local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), menuList.Content.RectTransform), "Can Be Picked")
-	canbepicked.visible = false
-	
-	local locked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), menuList.Content.RectTransform), "Locked")
-	locked.visible = false
-	
-	local mirrorlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.04), menuList.Content.RectTransform), nil)
-	mirrorlayout.isHorizontal = true
-	mirrorlayout.Stretch = true
-	mirrorlayout.RelativeSpacing = 0.002
+		itemList = GUI.ListBox(GUI.RectTransform(Vector2(1, 1), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
 
-	local mirrorButtonx = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), mirrorlayout.RectTransform), "Mirror X", nil, "GUIButtonSmall")
-	local mirrorButtony = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), mirrorlayout.RectTransform), "Mirror Y", nil, "GUIButtonSmall")
+		itemname = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.1), itemList.Content.RectTransform), "None", nil, nil, GUI.Alignment.Center)
+		itemname.TextColor = Color((255), (153), (153))
+		itemname.TextScale = 1.3
 
-	local targetabletagstext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.055), menuList.Content.RectTransform), "Tags To Not Target", nil, nil, GUI.Alignment.Center)
-	targetabletagstext.visible = false
-	EditGUI.targetabletags = GUI.TextBox(GUI.RectTransform(Vector2(1, 0.2), menuList.Content.RectTransform), "")
-	EditGUI.targetabletags.visible = false
+		if EditGUI.Settings.spritedepth == true then
+			local spritedepthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), itemList.Content.RectTransform), nil)
+			spritedepthlayout.isHorizontal = true
+			spritedepthlayout.Stretch = true
+			spritedepthlayout.RelativeSpacing = 0.001
 
-	EditGUI.targetnoninteractable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), menuList.Content.RectTransform), "Target Non Interactable")
-	EditGUI.targetnoninteractable.visible = false
-
-	local misc = GUI.ListBox(GUI.RectTransform(Vector2(0.93, 0.14), menuContent.RectTransform, GUI.Anchor.BottomCenter))
-	misc.RectTransform.AbsoluteOffset = Point(0, 23)
-
-
-	local misclayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.5), misc.Content.RectTransform), nil)
-	misclayout.isHorizontal = true
-	misclayout.Stretch = true
-	misclayout.RelativeSpacing = 0.004
-
-	local apply = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "Apply")
-	local linktargets = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "None")
-	local clear = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "Clear")
-	local settings = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "Settings")
-
-	local closeButton = GUI.Button(GUI.RectTransform(Vector2(1, 1), misc.Content.RectTransform), "Close", GUI.Alignment.Center)
-	closeButton.OnClicked = function ()
-    menu.Visible = not menu.Visible
-	end
-	
-	local hidden = false
-	local check = true
-	
-	Component = function()
-		if itemedit.GetComponentString("Holdable") and hidden == false then
-			holdable = true
-			canbepicked.visible = true
-			canbepicked.Selected = itemedit.GetComponentString("Holdable").CanBePicked
-		else
-			holdable = false
-			canbepicked.visible = false
-		end
-		if itemedit.GetComponentString("ConnectionPanel") and hidden == false then
-			connectionpanel = true
-			locked.visible = true
-			locked.Selected = itemedit.GetComponentString("ConnectionPanel").Locked
-		else
-			connectionpanel = false
-			locked.visible = false
-		end
-	end
-
-	Links = function()
-		local isLinked = false
-    
-		for key, value in pairs(itemedit1.linkedTo) do
-			if value == itemedit2 then
-				isLinked = true
-				break
-			end
-		end
-    
-		if isLinked then
-			Unlink = true
-			linktargets.Text = "Unlink"
-		else
-			Unlink = false
-			linktargets.Text = "Link"
-		end
-	end
-
-	settingmenu = function()
-		if settingsmenu == true then
-			EditGUI.targetnoninteractable.visible = true
-			targetabletagstext.visible = true
-			EditGUI.targetabletags.visible = true
-		else
-			EditGUI.targetnoninteractable.visible = false
-			targetabletagstext.visible = false
-			EditGUI.targetabletags.visible = false
-		end
-	end
-	
-	valuetrue = function()
-		spritedepthtext.visible = true
-		spritedepth.visible = true
-		rotationtext.visible = true
-		rotation.visible = true
-		scaletext.visible = true
-		scale.visible = true
-		spritecolortext.visible = true
-		redtext.visible = true
-		red.visible = true
-		greentext.visible = true
-		green.visible = true
-		bluetext.visible = true
-		blue.visible = true
-		colorlayout.visible = true
-		display.visible = true
-		mirrorButtonx.visible = true
-		mirrorButtony.visible = true
-		noninteractable.visible = true
-		itemname.visible = true
-		tagstext.visible = true
-		tagstextblock.visible = true
-	end
-	
-	valuefalse = function()
-		spritedepthtext.visible = false
-		spritedepth.visible = false
-		rotationtext.visible = false
-		rotation.visible = false
-		scaletext.visible = false
-		scale.visible = false
-		spritecolortext.visible = false
-		redtext.visible = false
-		red.visible = false
-		greentext.visible = false
-		green.visible = false
-		bluetext.visible = false
-		blue.visible = false
-		colorlayout.visible = false
-		display.visible = false
-		mirrorButtonx.visible = false
-		mirrorButtony.visible = false
-		noninteractable.visible = false
-		canbepicked.visible = false
-		locked.visible = false
-		itemname.visible = false
-		tagstext.visible = false
-		tagstextblock.visible = false
-	end
-	
-	reloadvalues = function()
-		spritedepth.FloatValue = itemedit.SpriteDepth * 1000
-		rotation.IntValue = itemedit.Rotation
-		scale.FloatValue = itemedit.Scale * 1000
-		red.IntValue, green.IntValue, blue.IntValue = itemedit.SpriteColor.R,itemedit.SpriteColor.G,itemedit.SpriteColor.B
-		display.Selected = itemedit.DisplaySideBySideWhenLinked
-		noninteractable.Selected = itemedit.NonInteractable
-		tagstext.Text = itemedit.Tags
-		Component()
-		Links()
-	end
-
-	Hook.Add("Edit", "edit", function(statusEffect, deltaTime, item)
-		local owner = FindClientCharacter(item.ParentInventory.Owner)
-		local target = findtarget.findtarget(item)
-		-- Start Of Checks
-	
-		if item.ParentInventory.Owner ~= Character.Controlled then
-			menu.Visible = false
-			return
-		end
+			local spritedepthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), spritedepthlayout.RectTransform), "Sprite Depth", nil, nil, GUI.Alignment.CenterLeft)
 		
-	
-		if Game.IsMultiplayer and owner.Permissions == 0 then
-			AddMessage("Insuffient Permissions", owner)
-			return
-		end
-
-		if not menu.Visible then
-			menu.Visible = not menu.Visible
-		end
-	
-		if target == nil then
-			AddMessage("No item found", owner)
-			return
-		end
-	
-		if target == itemedit1 or target == itemedit2 then
-			AddMessage("Please Choose Another Item", owner)
-			return
-		end
-	
-		if check == true then
-			itemedit1 = target
-			itemname.Text = itemedit1.Name
-			itemeditbutton1.Text = itemedit1.Name
-			itemedit = itemedit1
-			check = false
-		else
-			itemedit2 = target
-			itemeditbutton2.Text = itemedit2.Name
-			check = true
-		end
-	
-		if itemedit == nil then
-			return
-		end
-	
-		-- End Of Checks
-
-	
-		if hidden == false then
-			Component()
-		end
-	
-		if itemedit2 == nil then
-	
-		else
-		Links()
-		end
-	
-		itemeditbutton1.OnClicked = function()
-			if itemedit1 == nil then
-			else
-				itemname.Text = itemedit1.Name
-				itemedit = itemedit1
-				hidden = false
-				reloadvalues()
-				valuetrue()
-				settingsmenu = false
-				settingmenu()
+			spritedepth = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), spritedepthlayout.RectTransform), NumberType.Float)
+			spritedepth.DecimalsToDisplay = 3
+			spritedepth.MinValueFloat = 0.001
+			spritedepth.MaxValueFloat = 0.999
+			spritedepth.valueStep = 0.1
+			spritedepth.OnValueChanged = function ()
+				if itemedit then
+					itemedit.SpriteDepth = spritedepth.FloatValue
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "SpriteDepth", itemedit.SpriteDepth)
+					end
+				end
 			end
 		end
 	
-		itemeditbutton2.OnClicked = function()	
-			if itemedit2 == nil then
-			else
-				itemname.Text = itemedit2.Name
-				itemedit = itemedit2
-				hidden = false
-				reloadvalues()
-				valuetrue()
-				settingsmenu = false
-				settingmenu()
+		if EditGUI.Settings.rotation == true then
+			local rotationlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), itemList.Content.RectTransform), nil)
+			rotationlayout.isHorizontal = true
+			rotationlayout.Stretch = true
+			rotationlayout.RelativeSpacing = 0.001
+
+			local rotationtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), rotationlayout.RectTransform), "Rotation", nil, nil, GUI.Alignment.CenterLeft)
+		
+			rotation = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), rotationlayout.RectTransform), NumberType.Int)
+			rotation.MinValueInt = 0
+			rotation.MaxValueInt = 360
+			rotation.valueStep = 10
+			rotation.OnValueChanged = function ()
+				if itemedit then
+					itemedit.Rotation = rotation.IntValue
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "Rotation", itemedit.Rotation)
+					end
+				end
+			end
+		end
+	
+		if EditGUI.Settings.scale == true then
+			local scalelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), itemList.Content.RectTransform), nil)
+			scalelayout.isHorizontal = true
+			scalelayout.Stretch = true
+			scalelayout.RelativeSpacing = 0.001
+
+			local scaletext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), scalelayout.RectTransform), "Scale", nil, nil, GUI.Alignment.CenterLeft)
+		
+			scale = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), scalelayout.RectTransform), NumberType.Float)
+			scale.DecimalsToDisplay = 3
+			scale.valueStep = 0.1
+			scale.MinValueFloat = EditGUI.Settings.scalemin
+			scale.MaxValueFloat = EditGUI.Settings.scalemax
+			scale.OnValueChanged = function ()
+				if itemedit and scale.FloatValue <= scale.MaxValueFloat and scale.FloatValue >= scale.MinValueFloat then
+					itemedit.Scale = scale.FloatValue
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "Scale", itemedit.Scale)
+					end
+				end
+			end
+		end
+	
+		if EditGUI.Settings.condition == true then
+			local conditionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), itemList.Content.RectTransform), nil)
+			conditionlayout.isHorizontal = true
+			conditionlayout.Stretch = true
+			conditionlayout.RelativeSpacing = 0.001
+
+
+			local conditiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), conditionlayout.RectTransform), "Condition", nil, nil, GUI.Alignment.CenterLeft)
+		
+			condition = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), conditionlayout.RectTransform), NumberType.Float)	
+			condition.MinValueFloat = 0
+			condition.MaxValueFloat = 100
+			condition.valueStep = 1
+			condition.OnValueChanged = function ()
+				if itemedit then
+					itemedit.Condition = condition.FloatValue
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "Condition", condition.FloatValue)
+					end
+				end
+			end
+		end
+
+		if EditGUI.Settings.spritecolor == true then
+			local colorlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), itemList.Content.RectTransform), nil)
+			colorlayout.isHorizontal = true
+			colorlayout.Stretch = true
+			colorlayout.RelativeSpacing = 0.01
+	
+			local spritecolortext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), colorlayout.RectTransform), "Sprite Color", nil, nil, GUI.Alignment.CenterLeft)
+
+			local redtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "R", nil, nil, GUI.Alignment.Center)
+			red = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+			local greentext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "G", nil, nil, GUI.Alignment.Center)
+			green = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+			local bluetext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "B", nil, nil, GUI.Alignment.Center)
+			blue = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+	
+			red.MinValueInt = 0
+			green.MinValueInt = 0
+			blue.MinValueInt = 0
+			red.MaxValueInt = 255
+			green.MaxValueInt = 255
+			blue.MaxValueInt = 255
+		
+			if EditGUI.Settings.alpha == true then
+				local alphatext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "A", nil, nil, GUI.Alignment.Center)
+			
+				alpha = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+				alpha.MinValueInt = 0
+				alpha.MaxValueInt = 255
+				alpha.OnValueChanged = function ()
+					if itemedit and alpha.IntValue <= 255 and alpha.IntValue >= 0 then
+						itemedit.SpriteColor = Color(itemedit.SpriteColor.r, itemedit.SpriteColor.g, itemedit.SpriteColor.b, alpha.IntValue)
+						if Game.IsMultiplayer then
+							Update.itemupdatecolorvalue.fn(itemedit.ID, "SpriteColor", itemedit.SpriteColor)
+						end
+					end
+				end
+			end
+		
+			red.OnValueChanged = function ()
+				if itemedit and red.IntValue <= 255 and red.IntValue >= 0 then
+					itemedit.SpriteColor = Color(red.IntValue, itemedit.SpriteColor.g, itemedit.SpriteColor.b, itemedit.SpriteColor.a)
+					if Game.IsMultiplayer then
+						Update.itemupdatecolorvalue.fn(itemedit.ID, "SpriteColor", itemedit.SpriteColor)
+					end					
+				end
+			end
+			green.OnValueChanged = function ()
+				if itemedit and green.IntValue <= 255 and green.IntValue >= 0 then
+					itemedit.SpriteColor = Color(itemedit.SpriteColor.r, green.IntValue, itemedit.SpriteColor.b, itemedit.SpriteColor.a)
+					if Game.IsMultiplayer then
+						Update.itemupdatecolorvalue.fn(itemedit.ID, "SpriteColor", itemedit.SpriteColor)
+					end						
+				end
+			end
+			blue.OnValueChanged = function ()
+				if itemedit and blue.IntValue <= 255 and blue.IntValue >= 0 then
+					itemedit.SpriteColor = Color(itemedit.SpriteColor.r, itemedit.SpriteColor.g, blue.IntValue, itemedit.SpriteColor.a)		
+					if Game.IsMultiplayer then
+						Update.itemupdatecolorvalue.fn(itemedit.ID, "SpriteColor", itemedit.SpriteColor)
+					end						
+				end
+			end
+		end
+	
+		if EditGUI.Settings.tags == true then
+			local tagslayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), itemList.Content.RectTransform), nil)
+			tagslayout.isHorizontal = true
+			tagslayout.Stretch = true
+			tagslayout.RelativeSpacing = 0.001
+	
+			local tagstextblock = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), tagslayout.RectTransform), "Tags", nil, nil, GUI.Alignment.CenterLeft)
+		
+			tagstext = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), tagslayout.RectTransform), "")
+			tagstext.OnTextChangedDelegate = function()
+				if itemedit then
+					itemedit.Tags = tagstext.Text
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "Tags", itemedit.Tags)
+					end
+				end
+			end
+		end
+	
+		if EditGUI.Settings.description == true then
+			local descriptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), itemList.Content.RectTransform), nil)
+			descriptionlayout.isHorizontal = true
+			descriptionlayout.Stretch = true
+			descriptionlayout.RelativeSpacing = 0.001
+
+			local descriptiontextblock = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), descriptionlayout.RectTransform), "Description", nil, nil, GUI.Alignment.CenterLeft)
+		
+			descriptiontext = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 0.1), descriptionlayout.RectTransform), "")
+			descriptiontext.OnTextChangedDelegate = function()
+				if itemedit then
+					itemedit.Description = descriptiontext.Text
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "Description", itemedit.Description)
+					end
+				end
+			end
+		end
+	
+		if EditGUI.Settings.noninteractable == true then
+			noninteractable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), itemList.Content.RectTransform), "Non Interactable")
+			noninteractable.OnSelected = function()
+				if itemedit then
+					itemedit.NonInteractable = noninteractable.Selected == true
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "NonInteractable", itemedit.NonInteractable)
+					end
+				end
+			end	
+		end
+	
+		if EditGUI.Settings.nonplayerteaminteractable == true then
+			nonplayerteaminteractable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), itemList.Content.RectTransform), "Non-Player Team Interactable")
+			nonplayerteaminteractable.OnSelected = function()
+				if itemedit  then
+					itemedit.NonPlayerTeamInteractable = nonplayerteaminteractable.Selected == true
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "NonPlayerTeamInteractable", itemedit.NonPlayerTeamInteractable)
+					end
+				end
+			end	
+		end
+	
+		if EditGUI.Settings.invulnerabletodamage == true then
+			invulnerabletodamage = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), itemList.Content.RectTransform), "Invulnerable to Damage")
+			invulnerabletodamage.OnSelected = function()
+				if itemedit then
+					itemedit.InvulnerableToDamage = invulnerabletodamage.Selected == true
+				end
+			end
+		end
+
+		if EditGUI.Settings.displaysidebysidewhenlinked == true then
+			displaysidebysidewhenlinked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), itemList.Content.RectTransform), "Display Side By Side When Linked")
+			displaysidebysidewhenlinked.OnSelected = function()
+				if itemedit then
+					itemedit.DisplaySideBySideWhenLinked = displaysidebysidewhenlinked.Selected == true
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "DisplaySideBySideWhenLinked", itemedit.DisplaySideBySideWhenLinked)
+					end
+				end
+			end
+		end
+
+		if EditGUI.Settings.hiddeningame == true then
+			hiddeningame = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), itemList.Content.RectTransform), "Hidden In Game")	
+			hiddeningame.OnSelected = function()
+				if itemedit then
+					itemedit.HiddenInGame = hiddeningame.Selected == true
+					if Game.IsMultiplayer then
+						Update.itemupdatevalue.fn(itemedit.ID, "HiddenInGame", itemedit.HiddenInGame)
+					end
+				end
+			end	
+		end
+
+		if EditGUI.Settings.mirror == true then
+			local mirrorlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.04), itemList.Content.RectTransform), nil)
+			mirrorlayout.isHorizontal = true
+			mirrorlayout.RelativeSpacing = 0.002
+
+			local mirrorButtonx = GUI.Button(GUI.RectTransform(Vector2(0.499, 0.2), mirrorlayout.RectTransform), "Mirror X", nil, "GUIButtonSmall")
+			mirrorButtonx.OnClicked = function()
+				if itemedit then
+					if CLIENT and Game.IsMultiplayer then
+						mirrorx = Networking.Start("flipxnetwork")
+						mirrorx.WriteUInt16(UShort(itemedit.ID))
+						Networking.Send(mirrorx)
+					else
+						itemedit.FlipX(false)
+					end
+				end
+			end
+		
+			local mirrorButtony = GUI.Button(GUI.RectTransform(Vector2(0.499, 0.2), mirrorlayout.RectTransform), "Mirror Y", nil, "GUIButtonSmall")
+			mirrorButtony.OnClicked = function()
+				if itemedit then
+					if CLIENT and Game.IsMultiplayer then
+						mirrory = Networking.Start("flipynetwork")
+						mirrory.WriteUInt16(UShort(itemedit.ID))
+						Networking.Send(mirrory)
+					else
+						itemedit.FlipY(false)
+					end
+				end
 			end
 		end
 		
-		-- Start Of Values
+	end
+	-- Main Component End --
+	-- LightComponent Component Start --
+	local LightComponentfunction = function(component, key)
 
-		spritedepth.FloatValue = itemedit.SpriteDepth * 1000
-		spritedepth.MinValueFloat = 100
-		spritedepth.MaxValueFloat = 900
-		spritedepth.valueStep = 50
-		spritedepth.OnValueChanged = function ()
-			itemedit.SpriteDepth = spritedepth.FloatValue / 1000
+		if EditGUI.Settings.lightcomponent == false then
+			return
 		end
 		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 1.2), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.07), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
 	
-		rotation.IntValue = itemedit.Rotation
-		rotation.MinValueInt = 0
-		rotation.MaxValueInt = 360
-		rotation.valueStep = 10
-		rotation.OnValueChanged = function ()
-			itemedit.Rotation = rotation.IntValue
+		local rangelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		rangelayout.isHorizontal = true
+		rangelayout.Stretch = true
+		rangelayout.RelativeSpacing = 0.001
+	
+		local rangetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), rangelayout.RectTransform), "Range", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local range = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), rangelayout.RectTransform), NumberType.Float)
+		range.FloatValue = component.Range
+		range.MinValueFloat = 0
+		range.MaxValueFloat = 2048
+		range.valueStep = 10
+		range.OnValueChanged = function()
+			component.Range = range.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Range", component.Range)
+			end
+		end
+		
+		local flickerlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		flickerlayout.isHorizontal = true
+		flickerlayout.Stretch = true
+		flickerlayout.RelativeSpacing = 0.001
+	
+		local flickertext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), flickerlayout.RectTransform), "Flicker", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local flicker = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), flickerlayout.RectTransform), NumberType.Float)
+		flicker.FloatValue = component.Flicker
+		flicker.OnValueChanged = function()
+			component.Flicker = flicker.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Flicker", component.Flicker)
+			end
 		end
 	
-		scale.FloatValue = itemedit.Scale * 1000
-		scale.MinValueFloat = 400
-		scale.MaxValueFloat = 600
-		scale.valueStep = 50
-		scale.OnValueChanged = function ()
-			itemedit.Scale = scale.FloatValue / 1000
+		local flickerspeedlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		flickerspeedlayout.isHorizontal = true
+		flickerspeedlayout.Stretch = true
+		flickerspeedlayout.RelativeSpacing = 0.001
+	
+		local flickerspeedtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), flickerspeedlayout.RectTransform), "Flicker Speed", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local flickerspeed = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), flickerspeedlayout.RectTransform), NumberType.Float)
+		flickerspeed.FloatValue = component.FlickerSpeed
+		flickerspeed.OnValueChanged = function()
+			component.FlickerSpeed = flickerspeed.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FlickerSpeed", component.FlickerSpeed)
+			end
+		end
+		
+		local pulsefrequencylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		pulsefrequencylayout.isHorizontal = true
+		pulsefrequencylayout.Stretch = true
+		pulsefrequencylayout.RelativeSpacing = 0.001
+	
+		local pulsefrequencytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pulsefrequencylayout.RectTransform), "Pulse Frequency", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pulsefrequency = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pulsefrequencylayout.RectTransform), NumberType.Float)
+		pulsefrequency.FloatValue = component.PulseFrequency
+		pulsefrequency.OnValueChanged = function()
+			component.PulseFrequency = pulsefrequency.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PulseFrequency", component.PulseFrequency)
+			end
 		end
 	
-		red.IntValue, green.IntValue, blue.IntValue = itemedit.SpriteColor.R,itemedit.SpriteColor.G,itemedit.SpriteColor.B
+		local pulseamountlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		pulseamountlayout.isHorizontal = true
+		pulseamountlayout.Stretch = true
+		pulseamountlayout.RelativeSpacing = 0.001
+	
+		local pulseamounttext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pulseamountlayout.RectTransform), "Pulse Amount", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pulseamount = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pulseamountlayout.RectTransform), NumberType.Float)
+		pulseamount.DecimalsToDisplay = 2
+		pulseamount.FloatValue = component.PulseAmount
+		pulseamount.MinValueFloat = 0
+		pulseamount.MaxValueFloat = 1
+		pulseamount.valueStep = 0.1
+		pulseamount.OnValueChanged = function()
+			component.PulseAmount = pulseamount.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PulseAmount", component.PulseAmount)
+			end
+		end
+	
+		local blinkfrequencylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		blinkfrequencylayout.isHorizontal = true
+		blinkfrequencylayout.Stretch = true
+		blinkfrequencylayout.RelativeSpacing = 0.001
+	
+		local blinkfrequencytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), blinkfrequencylayout.RectTransform), "Blink Frequency", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local blinkfrequency = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), blinkfrequencylayout.RectTransform), NumberType.Float)
+		blinkfrequency.FloatValue = component.BlinkFrequency
+		blinkfrequency.OnValueChanged = function()
+			component.BlinkFrequency = blinkfrequency.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".BlinkFrequency", component.BlinkFrequency)
+			end
+		end
+	
+		local colorlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), List.Content.RectTransform), nil)
+		colorlayout.isHorizontal = true
+		colorlayout.Stretch = true
+		colorlayout.RelativeSpacing = 0.01
+	
+		local colortext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), colorlayout.RectTransform), "Color", nil, nil, GUI.Alignment.CenterLeft)
+
+		local redtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "R", nil, nil, GUI.Alignment.Center)
+		
+		local red = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+		red.IntValue = component.lightColor.R
 		red.MinValueInt = 0
-		green.MinValueInt = 0
-		blue.MinValueInt = 0
 		red.MaxValueInt = 255
+		
+		local greentext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "G", nil, nil, GUI.Alignment.Center)
+		
+		local green = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+		green.IntValue = component.lightColor.G
+		green.MinValueInt = 0
 		green.MaxValueInt = 255
+		
+		local bluetext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "B", nil, nil, GUI.Alignment.Center)
+		
+		local blue = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+		blue.IntValue = component.lightColor.B
+		blue.MinValueInt = 0
 		blue.MaxValueInt = 255
+
+		local alphatext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "A", nil, nil, GUI.Alignment.Center)
+		
+		local alpha = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+		alpha.IntValue = component.lightColor.A
+		alpha.MinValueInt = 0
+		alpha.MaxValueInt = 255
+		
 		red.OnValueChanged = function ()
-			itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
+			if red.IntValue < 255 then
+				component.lightColor = Color(red.IntValue, green.IntValue, blue.IntValue, alpha.IntValue)
+				if Game.IsMultiplayer then
+					Update.itemupdatecolorvalue.fn(itemedit.ID, key .. ".lightColor", component.lightColor)
+				end
+			end
 		end
 		green.OnValueChanged = function ()
-			itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
+			if green.IntValue < 255 then
+				component.lightColor = Color(red.IntValue, green.IntValue, blue.IntValue, alpha.IntValue)
+				if Game.IsMultiplayer then
+					Update.itemupdatecolorvalue.fn(itemedit.ID, key .. ".lightColor", component.lightColor)
+				end
+			end
 		end
 		blue.OnValueChanged = function ()
-			itemedit.SpriteColor = Color(red.IntValue,green.IntValue,blue.IntValue)
+			if blue.IntValue < 255 then
+				component.lightColor = Color(red.IntValue, green.IntValue, blue.IntValue, alpha.IntValue)
+				if Game.IsMultiplayer then
+					Update.itemupdatecolorvalue.fn(itemedit.ID, key .. ".lightColor", component.lightColor)
+				end
+			end
 		end
-
-
-		mirrorButtonx.OnClicked = function()
-			if itemedit then
-				if CLIENT and Game.IsMultiplayer then
-					mirrorx = Networking.Start("flipxnetwork")
-					mirrorx.WriteUInt16(UShort(itemedit.ID))
-					Networking.Send(mirrorx)
-				else
-					itemedit.FlipX(false)
+		alpha.OnValueChanged = function ()
+			if alpha.IntValue < 255 then
+				component.lightColor = Color(red.IntValue, green.IntValue, blue.IntValue, alpha.IntValue)
+				if Game.IsMultiplayer then
+					Update.itemupdatecolorvalue.fn(itemedit.ID, key .. ".lightColor", component.lightColor)
 				end
 			end
 		end
 
-		mirrorButtony.OnClicked = function()
-			if itemedit then
-				if CLIENT and Game.IsMultiplayer then
-					mirrory = Networking.Start("flipynetwork")
-					mirrory.WriteUInt16(UShort(itemedit.ID))
-					Networking.Send(mirrory)
-				else
-					itemedit.FlipY(false)
-				end
+
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		minvoltagelayout.isHorizontal = true
+		minvoltagelayout.Stretch = true
+		minvoltagelayout.RelativeSpacing = 0.001
+	
+		local minvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minvoltagelayout.RectTransform), "Min Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minvoltagelayout.RectTransform), NumberType.Float)
+		minvoltage.FloatValue = component.MinVoltage
+		minvoltage.OnValueChanged = function()
+			component.MinVoltage = minvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinVoltage", component.MinVoltage)
 			end
 		end
 	
-		tagstext.Text = itemedit.Tags
-		tagstext.OnTextChangedDelegate = function (tagstext)
-			itemedit.Tags = tagstext.Text
-		end
-
-		display.Selected = itemedit.DisplaySideBySideWhenLinked
-		display.OnSelected = function ()
-			itemedit.DisplaySideBySideWhenLinked = display.Selected == true
-		end
-
-		noninteractable.Selected = itemedit.NonInteractable
-		noninteractable.OnSelected = function ()
-			itemedit.NonInteractable = noninteractable.Selected == true
-		end
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		powerconsumptionlayout.isHorizontal = true
+		powerconsumptionlayout.Stretch = true
+		powerconsumptionlayout.RelativeSpacing = 0.001
 	
-		if holdable == true then
-			canbepicked.Selected = itemedit.GetComponentString("Holdable").CanBePicked
-			canbepicked.OnSelected = function ()
-				itemedit.GetComponentString("Holdable").CanBePicked = canbepicked.Selected == true
+		local powerconsumptiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), powerconsumptionlayout.RectTransform), "Power Consumption", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local powerconsumption = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), powerconsumptionlayout.RectTransform), NumberType.Float)
+		powerconsumption.FloatValue = component.PowerConsumption
+		powerconsumption.OnValueChanged = function()
+			component.PowerConsumption = powerconsumption.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PowerConsumption", component.PowerConsumption)
 			end
 		end
 	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.055), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
 	
-		if connectionpanel == true then
-			locked.Selected = itemedit.GetComponentString("ConnectionPanel").Locked
-			locked.OnSelected = function ()
-				itemedit.GetComponentString("ConnectionPanel").Locked = locked.Selected == true
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local castshadows = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Cast Shadows")
+		castshadows.Selected = component.CastShadows
+		castshadows.OnSelected = function()
+			component.CastShadows = castshadows.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CastShadows", component.CastShadows)
+			end
+		end
+	
+		local drawbehindsubs = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Draw Behind Subs")
+		drawbehindsubs.Selected = component.DrawBehindSubs
+		drawbehindsubs.OnSelected = function()
+			component.DrawBehindSubs = drawbehindsubs.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".DrawBehindSubs", component.DrawBehindSubs)
 			end
 		end
 		
-		apply.OnClicked = function()
-			if itemedit == nil then 
-				return
+		local ison = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Is On")
+		ison.Selected = component.IsOn
+		ison.OnSelected = function()
+			component.IsOn = ison.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".IsOn", component.IsOn)
+			end
+		end
+
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		vulnerabletoemp.Selected = component.VulnerableToEMP
+		vulnerabletoemp.OnSelected = function()
+			component.VulnerableToEMP = vulnerabletoemp.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".VulnerableToEMP", component.VulnerableToEMP)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.05), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- LightComponent Component End --
+	-- Holdable Component Start --
+	local Holdablefunction = function(component, key)
+
+		if EditGUI.Settings.holdable == false then
+			return
+		end
+
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+	
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.46), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local spritedepthwhendroppedlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		spritedepthwhendroppedlayout.isHorizontal = true
+		spritedepthwhendroppedlayout.Stretch = true
+		spritedepthwhendroppedlayout.RelativeSpacing = 0.001
+		
+		local spritedepthwhendroppedtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), spritedepthwhendroppedlayout.RectTransform), "Sprite Depth", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local spritedepthwhendropped = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), spritedepthwhendroppedlayout.RectTransform), NumberType.Float)
+		spritedepthwhendropped.DecimalsToDisplay = 3
+		spritedepthwhendropped.FloatValue = component.SpriteDepthWhenDropped
+		spritedepthwhendropped.MinValueFloat = 0.001
+		spritedepthwhendropped.MaxValueFloat = 0.999
+		spritedepthwhendropped.valueStep = 0.1
+		spritedepthwhendropped.OnValueChanged = function ()
+			component.SpriteDepthWhenDropped = spritedepthwhendropped.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".SpriteDepthWhenDropped", component.SpriteDepthWhenDropped)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+
+	end
+	-- Holdable Component End --
+	-- Connection Panel Component Start --
+	local ConnectionPanelfunction = function(component, key)
+
+		if EditGUI.Settings.connectionpanel == false then
+			return
+		end
+
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+	
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.41), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.12), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+	
+		local locked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Locked")
+		locked.Selected = component.Locked
+		locked.OnSelected = function()
+			component.Locked = locked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Locked", component.Locked)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.155), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Connection Panel Component End --
+	-- Fabricator Component Start --
+	local Fabricatorfunction = function(component, key)
+
+		if EditGUI.Settings.fabricator == false then
+			return
+		end
+
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.58), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.12), List.Content.RectTransform), nil)
+		minvoltagelayout.isHorizontal = true
+		minvoltagelayout.Stretch = true
+		minvoltagelayout.RelativeSpacing = 0.001
+	
+		local minvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minvoltagelayout.RectTransform), "Min Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minvoltagelayout.RectTransform), NumberType.Float)
+		minvoltage.FloatValue = component.MinVoltage
+		minvoltage.OnValueChanged = function()
+			component.MinVoltage = minvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinVoltage", component.MinVoltage)
+			end
+		end
+	
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.12), List.Content.RectTransform), nil)
+		powerconsumptionlayout.isHorizontal = true
+		powerconsumptionlayout.Stretch = true
+		powerconsumptionlayout.RelativeSpacing = 0.001
+	
+		local powerconsumptiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), powerconsumptionlayout.RectTransform), "Power Consumption", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local powerconsumption = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), powerconsumptionlayout.RectTransform), NumberType.Float)
+		powerconsumption.FloatValue = component.PowerConsumption
+		powerconsumption.OnValueChanged = function()
+			component.PowerConsumption = powerconsumption.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PowerConsumption", component.PowerConsumption)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.12), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		vulnerabletoemp.Selected = component.VulnerableToEMP
+		vulnerabletoemp.OnSelected = function()
+			component.VulnerableToEMP = vulnerabletoemp.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".VulnerableToEMP", component.VulnerableToEMP)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.105), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Fabricator Component End --
+	-- Deconstructor Component Start --
+	local Deconstructorfunction = function(component, key)
+
+		if EditGUI.Settings.deconstructor == false then
+			return
+		end
+
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.66), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local deconstructionspeedlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		deconstructionspeedlayout.isHorizontal = true
+		deconstructionspeedlayout.Stretch = true
+		deconstructionspeedlayout.RelativeSpacing = 0.001
+	
+		local deconstructionspeedtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), deconstructionspeedlayout.RectTransform), "Deconstruction Speed", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local deconstructionspeed = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), deconstructionspeedlayout.RectTransform), NumberType.Float)
+		deconstructionspeed.FloatValue = component.DeconstructionSpeed
+		deconstructionspeed.OnValueChanged = function()
+			component.DeconstructionSpeed = deconstructionspeed.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".DeconstructionSpeed", component.DeconstructionSpeed)
+			end
+		end
+	
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		minvoltagelayout.isHorizontal = true
+		minvoltagelayout.Stretch = true
+		minvoltagelayout.RelativeSpacing = 0.001
+	
+		local minvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minvoltagelayout.RectTransform), "Min Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minvoltagelayout.RectTransform), NumberType.Float)
+		minvoltage.FloatValue = component.MinVoltage
+		minvoltage.OnValueChanged = function()
+			component.MinVoltage = minvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinVoltage", component.MinVoltage)
+			end
+		end
+	
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		powerconsumptionlayout.isHorizontal = true
+		powerconsumptionlayout.Stretch = true
+		powerconsumptionlayout.RelativeSpacing = 0.001
+	
+		local powerconsumptiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), powerconsumptionlayout.RectTransform), "Power Consumption", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local powerconsumption = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), powerconsumptionlayout.RectTransform), NumberType.Float)
+		powerconsumption.FloatValue = component.PowerConsumption
+		powerconsumption.OnValueChanged = function()
+			component.PowerConsumption = powerconsumption.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PowerConsumption", component.PowerConsumption)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		vulnerabletoemp.Selected = component.VulnerableToEMP
+		vulnerabletoemp.OnSelected = function()
+			component.VulnerableToEMP = vulnerabletoemp.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".VulnerableToEMP", component.VulnerableToEMP)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Deconstructor Component End --
+	-- Reactor Component Start --
+	local Reactorfunction = function(component, key)
+
+		if EditGUI.Settings.reactor == false then
+			return
+		end
+
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.925), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local maxpoweroutputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), List.Content.RectTransform), nil)
+		maxpoweroutputlayout.isHorizontal = true
+		maxpoweroutputlayout.Stretch = true
+		maxpoweroutputlayout.RelativeSpacing = 0.001
+	
+		local maxpoweroutputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxpoweroutputlayout.RectTransform), "Max Power Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxpoweroutput = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxpoweroutputlayout.RectTransform), NumberType.Float)
+		maxpoweroutput.FloatValue = component.MaxPowerOutput
+		maxpoweroutput.OnValueChanged = function()
+			component.MaxPowerOutput = maxpoweroutput.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxPowerOutput", component.MaxPowerOutput)
+			end
+		end
+		
+		local meltdowndelaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), List.Content.RectTransform), nil)
+		meltdowndelaylayout.isHorizontal = true
+		meltdowndelaylayout.Stretch = true
+		meltdowndelaylayout.RelativeSpacing = 0.001
+	
+		local meltdowndelaytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), meltdowndelaylayout.RectTransform), "Meltdown Delay", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local meltdowndelay = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), meltdowndelaylayout.RectTransform), NumberType.Float)
+		meltdowndelay.FloatValue = component.MeltdownDelay
+		meltdowndelay.OnValueChanged = function()
+			component.MeltdownDelay = meltdowndelay.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MeltdownDelay", component.MeltdownDelay)
+			end
+		end
+	
+		local firedelaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), List.Content.RectTransform), nil)
+		firedelaylayout.isHorizontal = true
+		firedelaylayout.Stretch = true
+		firedelaylayout.RelativeSpacing = 0.001
+	
+		local firedelaytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), firedelaylayout.RectTransform), "Fire Delay", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local firedelay = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), firedelaylayout.RectTransform), NumberType.Float)
+		firedelay.FloatValue = component.FireDelay
+		firedelay.OnValueChanged = function()
+			component.FireDelay = firedelay.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FireDelay", component.FireDelay)
+			end
+		end
+		
+		local fuelconsumptionratelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), List.Content.RectTransform), nil)
+		fuelconsumptionratelayout.isHorizontal = true
+		fuelconsumptionratelayout.Stretch = true
+		fuelconsumptionratelayout.RelativeSpacing = 0.001
+	
+		local fuelconsumptionratetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), fuelconsumptionratelayout.RectTransform), "Fuel Consumption Rate", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local fuelconsumptionrate = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), fuelconsumptionratelayout.RectTransform), NumberType.Float)
+		fuelconsumptionrate.FloatValue = component.FuelConsumptionRate
+		fuelconsumptionrate.OnValueChanged = function()
+			component.FuelConsumptionRate = fuelconsumptionrate.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FuelConsumptionRate", component.FuelConsumptionRate)
+			end
+		end
+	
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		minvoltagelayout.isHorizontal = true
+		minvoltagelayout.Stretch = true
+		minvoltagelayout.RelativeSpacing = 0.001
+	
+		local minvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minvoltagelayout.RectTransform), "Min Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minvoltagelayout.RectTransform), NumberType.Float)
+		minvoltage.FloatValue = component.MinVoltage
+		minvoltage.OnValueChanged = function()
+			component.MinVoltage = minvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinVoltage", component.MinVoltage)
+			end
+		end
+	
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), List.Content.RectTransform), nil)
+		powerconsumptionlayout.isHorizontal = true
+		powerconsumptionlayout.Stretch = true
+		powerconsumptionlayout.RelativeSpacing = 0.001
+	
+		local powerconsumptiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), powerconsumptionlayout.RectTransform), "Power Consumption", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local powerconsumption = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), powerconsumptionlayout.RectTransform), NumberType.Float)
+		powerconsumption.FloatValue = component.PowerConsumption
+		powerconsumption.OnValueChanged = function()
+			component.PowerConsumption = powerconsumption.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PowerConsumption", component.PowerConsumption)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local explosiondamagesothersubs = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Explosion Damages Other Subs")
+		explosiondamagesothersubs.Selected = component.ExplosionDamagesOtherSubs
+		explosiondamagesothersubs.OnSelected = function()
+			component.ExplosionDamagesOtherSubs = explosiondamagesothersubs.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".ExplosionDamagesOtherSubs", component.ExplosionDamagesOtherSubs)
+			end
+		end
+
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		vulnerabletoemp.Selected = component.VulnerableToEMP
+		vulnerabletoemp.OnSelected = function()
+			component.VulnerableToEMP = vulnerabletoemp.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".VulnerableToEMP", component.VulnerableToEMP)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.075), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Reactor Component End --
+	-- OxygenGenerator Component Start --
+	local OxygenGeneratorfunction = function(component, key)
+
+		if EditGUI.Settings.oxygengenerator == false then
+			return
+		end
+
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.66), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local generatedamountlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		generatedamountlayout.isHorizontal = true
+		generatedamountlayout.Stretch = true
+		generatedamountlayout.RelativeSpacing = 0.001
+	
+		local generatedamounttext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), generatedamountlayout.RectTransform), "Generated Amount", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local generatedamount = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), generatedamountlayout.RectTransform), NumberType.Float)
+		generatedamount.FloatValue = component.GeneratedAmount
+		generatedamount.OnValueChanged = function()
+			component.GeneratedAmount = generatedamount.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".GeneratedAmount", component.GeneratedAmount)
+			end
+		end
+	
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		minvoltagelayout.isHorizontal = true
+		minvoltagelayout.Stretch = true
+		minvoltagelayout.RelativeSpacing = 0.001
+	
+		local minvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minvoltagelayout.RectTransform), "Min Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minvoltagelayout.RectTransform), NumberType.Float)
+		minvoltage.FloatValue = component.MinVoltage
+		minvoltage.OnValueChanged = function()
+			component.MinVoltage = minvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinVoltage", component.MinVoltage)
+			end
+		end
+	
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		powerconsumptionlayout.isHorizontal = true
+		powerconsumptionlayout.Stretch = true
+		powerconsumptionlayout.RelativeSpacing = 0.001
+	
+		local powerconsumptiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), powerconsumptionlayout.RectTransform), "Power Consumption", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local powerconsumption = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), powerconsumptionlayout.RectTransform), NumberType.Float)
+		powerconsumption.FloatValue = component.PowerConsumption
+		powerconsumption.OnValueChanged = function()
+			component.PowerConsumption = powerconsumption.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PowerConsumption", component.PowerConsumption)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		vulnerabletoemp.Selected = component.VulnerableToEMP
+		vulnerabletoemp.OnSelected = function()
+			component.VulnerableToEMP = vulnerabletoemp.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".VulnerableToEMP", component.VulnerableToEMP)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- OxygenGenerator Component End --
+	-- Repairable Component Start --
+	local Repairablefunction = function(component, key)
+		
+		if EditGUI.Settings.repairable == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+		
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.78), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.115), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local deteriorationspeedlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		deteriorationspeedlayout.isHorizontal = true
+		deteriorationspeedlayout.Stretch = true
+		deteriorationspeedlayout.RelativeSpacing = 0.001
+		
+		local deteriorationspeedtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), deteriorationspeedlayout.RectTransform), "Deterioration Speed", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local deteriorationspeed = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), deteriorationspeedlayout.RectTransform), NumberType.Float)
+		deteriorationspeed.FloatValue = component.DeteriorationSpeed
+		deteriorationspeed.MinValueFloat = 0
+		deteriorationspeed.MaxValueFloat = 100
+		deteriorationspeed.valueStep = 1
+		deteriorationspeed.OnValueChanged = function ()
+			component.DeteriorationSpeed = deteriorationspeed.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".DeteriorationSpeed", component.DeteriorationSpeed)
+			end
+		end
+		
+		local mindeteriorationdelaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		mindeteriorationdelaylayout.isHorizontal = true
+		mindeteriorationdelaylayout.Stretch = true
+		mindeteriorationdelaylayout.RelativeSpacing = 0.001
+		
+		local mindeteriorationdelaytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), mindeteriorationdelaylayout.RectTransform), "Min Deterioration Delay", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local mindeteriorationdelay = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), mindeteriorationdelaylayout.RectTransform), NumberType.Float)
+		mindeteriorationdelay.DecimalsToDisplay = 2
+		mindeteriorationdelay.FloatValue = component.MinDeteriorationDelay
+		mindeteriorationdelay.MinValueFloat = 0
+		mindeteriorationdelay.MaxValueFloat = 1000
+		mindeteriorationdelay.valueStep = 10
+		mindeteriorationdelay.OnValueChanged = function ()
+			component.MinDeteriorationDelay = mindeteriorationdelay.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinDeteriorationDelay", component.MinDeteriorationDelay)
+			end
+		end
+		
+		local maxdeteriorationdelaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		maxdeteriorationdelaylayout.isHorizontal = true
+		maxdeteriorationdelaylayout.Stretch = true
+		maxdeteriorationdelaylayout.RelativeSpacing = 0.001
+		
+		local maxdeteriorationdelaytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxdeteriorationdelaylayout.RectTransform), "Max Deterioration Delay", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxdeteriorationdelay = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), maxdeteriorationdelaylayout.RectTransform), NumberType.Float)
+		maxdeteriorationdelay.DecimalsToDisplay = 2
+		maxdeteriorationdelay.FloatValue = component.MaxDeteriorationDelay
+		maxdeteriorationdelay.MinValueFloat = 0
+		maxdeteriorationdelay.MaxValueFloat = 1000
+		maxdeteriorationdelay.valueStep = 10
+		maxdeteriorationdelay.OnValueChanged = function ()
+			component.MaxDeteriorationDelay = maxdeteriorationdelay.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxDeteriorationDelay", component.MaxDeteriorationDelay)
+			end
+		end
+		
+		local mindeteriorationconditionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		mindeteriorationconditionlayout.isHorizontal = true
+		mindeteriorationconditionlayout.Stretch = true
+		mindeteriorationconditionlayout.RelativeSpacing = 0.001
+		
+		local mindeteriorationconditiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), mindeteriorationconditionlayout.RectTransform), "Min Deterioration Condition", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local mindeteriorationcondition = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), mindeteriorationconditionlayout.RectTransform), NumberType.Float)
+		mindeteriorationcondition.FloatValue = component.MinDeteriorationCondition
+		mindeteriorationcondition.MinValueFloat = 0
+		mindeteriorationcondition.MaxValueFloat = 100
+		mindeteriorationcondition.valueStep = 1
+		mindeteriorationcondition.OnValueChanged = function ()
+			component.MinDeteriorationCondition = mindeteriorationcondition.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinDeteriorationCondition", component.MinDeteriorationCondition)
+			end
+		end
+	
+		local repairthresholdlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		repairthresholdlayout.isHorizontal = true
+		repairthresholdlayout.Stretch = true
+		repairthresholdlayout.RelativeSpacing = 0.001
+		
+		local repairthresholdtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), repairthresholdlayout.RectTransform), "Repair Threshold", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local repairthreshold = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), repairthresholdlayout.RectTransform), NumberType.Float)
+		repairthreshold.FloatValue = component.RepairThreshold
+		repairthreshold.MinValueFloat = 0
+		repairthreshold.MaxValueFloat = 100
+		repairthreshold.valueStep = 1
+		repairthreshold.OnValueChanged = function ()
+			component.RepairThreshold = repairthreshold.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".RepairThreshold", component.RepairThreshold)
+			end
+		end
+		
+		local fixdurationlowskilllayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		fixdurationlowskilllayout.isHorizontal = true
+		fixdurationlowskilllayout.Stretch = true
+		fixdurationlowskilllayout.RelativeSpacing = 0.001
+		
+		local fixdurationlowskilltext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), fixdurationlowskilllayout.RectTransform), "Fix Duration Low Skill", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local fixdurationlowskill = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), fixdurationlowskilllayout.RectTransform), NumberType.Float)
+		fixdurationlowskill.FloatValue = component.FixDurationLowSkill
+		fixdurationlowskill.MinValueFloat = 0
+		fixdurationlowskill.MaxValueFloat = 100
+		fixdurationlowskill.valueStep = 1
+		fixdurationlowskill.OnValueChanged = function ()
+			component.FixDurationLowSkill = fixdurationlowskill.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FixDurationLowSkill", component.FixDurationLowSkill)
+			end
+		end
+		
+		local fixdurationhighskilllayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		fixdurationhighskilllayout.isHorizontal = true
+		fixdurationhighskilllayout.Stretch = true
+		fixdurationhighskilllayout.RelativeSpacing = 0.001
+		
+		local fixdurationhighskilltext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), fixdurationhighskilllayout.RectTransform), "Fix Duration High Skill", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local fixdurationhighskill = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), fixdurationhighskilllayout.RectTransform), NumberType.Float)
+		fixdurationhighskill.FloatValue = component.FixDurationHighSkill
+		fixdurationhighskill.MinValueFloat = 0
+		fixdurationhighskill.MaxValueFloat = 100
+		fixdurationhighskill.valueStep = 1
+		fixdurationhighskill.OnValueChanged = function ()
+			component.FixDurationHighSkill = fixdurationhighskill.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FixDurationHighSkill", component.FixDurationHighSkill)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+	
+	end
+	-- Repairable Component End --
+	-- Power Transfer Component Start --
+	local PowerTransferfunction = function(component, key)
+		
+		if EditGUI.Settings.powertransfer == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.66), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local overloadvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		overloadvoltagelayout.isHorizontal = true
+		overloadvoltagelayout.Stretch = true
+		overloadvoltagelayout.RelativeSpacing = 0.001
+	
+		local overloadvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), overloadvoltagelayout.RectTransform), "Overload Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local overloadvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), overloadvoltagelayout.RectTransform), NumberType.Float)
+		overloadvoltage.FloatValue = component.OverloadVoltage
+		overloadvoltage.OnValueChanged = function()
+			component.OverloadVoltage = overloadvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".OverloadVoltage", component.OverloadVoltage)
+			end
+		end
+	
+		local fireprobabilitylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		fireprobabilitylayout.isHorizontal = true
+		fireprobabilitylayout.Stretch = true
+		fireprobabilitylayout.RelativeSpacing = 0.001
+	
+		local fireprobabilitytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), fireprobabilitylayout.RectTransform), "Fire Probability", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local fireprobability = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), fireprobabilitylayout.RectTransform), NumberType.Float)
+		fireprobability.MinValueFloat = 0
+		fireprobability.MaxValueFloat = 1
+		fireprobability.valueStep = 0.1
+		fireprobability.FloatValue = component.FireProbability
+		fireprobability.OnValueChanged = function()
+			component.FireProbability = fireprobability.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FireProbability", component.FireProbability)
+			end
+		end
+	
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		minvoltagelayout.isHorizontal = true
+		minvoltagelayout.Stretch = true
+		minvoltagelayout.RelativeSpacing = 0.001
+	
+		local minvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minvoltagelayout.RectTransform), "Min Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minvoltagelayout.RectTransform), NumberType.Float)
+		minvoltage.FloatValue = component.MinVoltage
+		minvoltage.OnValueChanged = function()
+			component.MinVoltage = minvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinVoltage", component.MinVoltage)
+			end
+		end
+	
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		powerconsumptionlayout.isHorizontal = true
+		powerconsumptionlayout.Stretch = true
+		powerconsumptionlayout.RelativeSpacing = 0.001
+	
+		local powerconsumptiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), powerconsumptionlayout.RectTransform), "Power Consumption", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local powerconsumption = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), powerconsumptionlayout.RectTransform), NumberType.Float)
+		powerconsumption.FloatValue = component.PowerConsumption
+		powerconsumption.OnValueChanged = function()
+			component.PowerConsumption = powerconsumption.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PowerConsumption", component.PowerConsumption)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local canbeoverloaded = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Overloaded")
+		canbeoverloaded.Selected = component.CanBeOverloaded
+		canbeoverloaded.OnSelected = function()
+			component.CanBeOverloaded = canbeoverloaded.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBeOverloaded", component.CanBeOverloaded)
+			end
+		end
+
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		vulnerabletoemp.Selected = component.VulnerableToEMP
+		vulnerabletoemp.OnSelected = function()
+			component.VulnerableToEMP = vulnerabletoemp.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".VulnerableToEMP", component.VulnerableToEMP)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+
+	end
+	-- Power Transfer Component End --
+	-- Item Container Component Start --
+	local ItemContainerfunction = function(component, key)
+		
+		if EditGUI.Settings.itemcontainer == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.4), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.26), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.6), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Item Container Component End --
+	-- Label Component Start --
+	local ItemLabelfunction = function(component, key)
+	
+		if EditGUI.Settings.itemlabel == false then
+			return
+		end
+	
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+	
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.65), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.15), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local textlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		textlayout.isHorizontal = true
+		textlayout.Stretch = true
+		textlayout.RelativeSpacing = 0.001
+	
+		local texttext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), textlayout.RectTransform), "Text", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local text = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), textlayout.RectTransform), "")
+		text.Text = component.Text
+		text.OnTextChangedDelegate = function()
+			component.Text = text.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Text", component.Text)
+			end
+		end
+	
+		local textscalelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		textscalelayout.isHorizontal = true
+		textscalelayout.Stretch = true
+		textscalelayout.RelativeSpacing = 0.001
+	
+		local textscaletext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), textscalelayout.RectTransform), "Text Scale", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local textscale = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), textscalelayout.RectTransform), NumberType.Float)
+		textscale.FloatValue = component.TextScale
+		textscale.OnValueChanged = function()
+			component.TextScale = textscale.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TextScale", component.TextScale)
+			end
+		end	
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local colorlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.125), List.Content.RectTransform), nil)
+		colorlayout.isHorizontal = true
+		colorlayout.Stretch = true
+		colorlayout.RelativeSpacing = 0.01
+	
+		local colortext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), colorlayout.RectTransform), "Color", nil, nil, GUI.Alignment.CenterLeft)
+
+		local redtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "R", nil, nil, GUI.Alignment.Center)
+		
+		local red = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+		red.IntValue = component.TextColor.R
+		red.MinValueInt = 0
+		red.MaxValueInt = 255
+		
+		local greentext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "G", nil, nil, GUI.Alignment.Center)
+		
+		local green = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+		green.IntValue = component.TextColor.G
+		green.MinValueInt = 0
+		green.MaxValueInt = 255
+		
+		local bluetext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "B", nil, nil, GUI.Alignment.Center)
+		
+		local blue = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+		blue.IntValue = component.TextColor.B
+		blue.MinValueInt = 0
+		blue.MaxValueInt = 255
+
+		local alphatext = GUI.TextBlock(GUI.RectTransform(Vector2(0.1, 1), colorlayout.RectTransform), "A", nil, nil, GUI.Alignment.Center)
+		
+		local alpha = GUI.NumberInput(GUI.RectTransform(Vector2(0.4, 1), colorlayout.RectTransform), NumberType.Int)
+		alpha.IntValue = component.TextColor.A
+		alpha.MinValueInt = 0
+		alpha.MaxValueInt = 255
+		
+		red.OnValueChanged = function ()
+			if red.IntValue < 255 then
+				component.TextColor = Color(red.IntValue, green.IntValue, blue.IntValue, alpha.IntValue)
+				if Game.IsMultiplayer then
+					Update.itemupdatecolorvalue.fn(itemedit.ID, key .. ".TextColor", component.TextColor)
+				end
+			end
+		end
+		green.OnValueChanged = function ()
+			if green.IntValue < 255 then
+				component.TextColor = Color(red.IntValue, green.IntValue, blue.IntValue, alpha.IntValue)
+				if Game.IsMultiplayer then
+					Update.itemupdatecolorvalue.fn(itemedit.ID, key .. ".TextColor", component.TextColor)
+				end
+			end
+		end
+		blue.OnValueChanged = function ()
+			if blue.IntValue < 255 then
+				component.TextColor = Color(red.IntValue, green.IntValue, blue.IntValue, alpha.IntValue)
+				if Game.IsMultiplayer then
+					Update.itemupdatecolorvalue.fn(itemedit.ID, key .. ".TextColor", component.TextColor)
+				end
+			end
+		end
+		alpha.OnValueChanged = function ()
+			if alpha.IntValue < 255 then
+				component.TextColor = Color(red.IntValue, green.IntValue, blue.IntValue, alpha.IntValue)
+				if Game.IsMultiplayer then
+					Update.itemupdatecolorvalue.fn(itemedit.ID, key .. ".TextColor", component.TextColor)
+				end
+			end
+		end
+	
+		local ignorelocalization = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Ignore Localization")
+		ignorelocalization.Selected = component.IgnoreLocalization
+		ignorelocalization.OnSelected = function()
+			component.IgnoreLocalization = ignorelocalization.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".IgnoreLocalization", component.IgnoreLocalization)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Label Component End --
+	-- Quality Component Start --
+	local Qualityfunction = function(component, key)
+	
+		if EditGUI.Settings.quality == false then
+			return
+		end
+	
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+	
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.3), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.3), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local qualitylevellayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.4), List.Content.RectTransform), nil)
+		qualitylevellayout.isHorizontal = true
+		qualitylevellayout.Stretch = true
+		qualitylevellayout.RelativeSpacing = 0.001
+
+		local qualityleveltext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), qualitylevellayout.RectTransform), "Quality Level", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local qualitylevel = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), qualitylevellayout.RectTransform), NumberType.Int)
+		qualitylevel.IntValue = component.QualityLevel
+		qualitylevel.MinValueInt = 0
+		qualitylevel.MaxValueInt = 3
+		qualitylevel.valueStep = 1
+		qualitylevel.OnValueChanged = function ()
+			component.QualityLevel = qualitylevel.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".QualityLevel", component.QualityLevel)
+			end
+		end
+	
+	end
+	-- Quality Component End --
+	-- And Component Start --
+	local AndComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local timeframelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		timeframelayout.isHorizontal = true
+		timeframelayout.Stretch = true
+		timeframelayout.RelativeSpacing = 0.001
+	
+		local timeframetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), timeframelayout.RectTransform), "Timeframe", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local timeframe = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), timeframelayout.RectTransform), NumberType.Float)
+		timeframe.DecimalsToDisplay = 2
+		timeframe.FloatValue = component.TimeFrame
+		timeframe.OnValueChanged = function()
+			component.TimeFrame = timeframe.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TimeFrame", component.TimeFrame)
+			end
+		end	
+		
+		local maxoutputlengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxoutputlengthlayout.isHorizontal = true
+		maxoutputlengthlayout.Stretch = true
+		maxoutputlengthlayout.RelativeSpacing = 0.001
+	
+		local maxoutputlengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxoutputlengthlayout.RectTransform), "Max Output Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxoutputlength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxoutputlengthlayout.RectTransform), NumberType.Int)
+		maxoutputlength.IntValue = component.MaxOutputLength
+		maxoutputlength.MinValueInt = -1000000000
+		maxoutputlength.MaxValueInt = 1000000000
+		maxoutputlength.valueStep = 1
+		maxoutputlength.OnValueChanged = function()
+			component.MaxOutputLength = maxoutputlength.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxOutputLength", component.MaxOutputLength)
+			end
+		end	
+		
+		local outputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		outputlayout.isHorizontal = true
+		outputlayout.Stretch = true
+		outputlayout.RelativeSpacing = 0.001
+		
+		local outputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), outputlayout.RectTransform), "Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local output = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), outputlayout.RectTransform), "")
+		output.text = component.Output
+		output.OnTextChangedDelegate = function()
+			component.Output = output.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Output", component.Output)
+			end
+		end
+		
+		local falseoutputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		falseoutputlayout.isHorizontal = true
+		falseoutputlayout.Stretch = true
+		falseoutputlayout.RelativeSpacing = 0.001
+		
+		local falseoutputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), falseoutputlayout.RectTransform), "False Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local falseoutput = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), falseoutputlayout.RectTransform), "")
+		falseoutput.text = component.FalseOutput
+		falseoutput.OnTextChangedDelegate = function()
+			component.FalseOutput = falseoutput.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FalseOutput", component.FalseOutput)
+			end
+		end
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- And Component End --
+	-- Greater Component Start --
+	local GreaterComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local timeframelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		timeframelayout.isHorizontal = true
+		timeframelayout.Stretch = true
+		timeframelayout.RelativeSpacing = 0.001
+	
+		local timeframetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), timeframelayout.RectTransform), "Timeframe", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local timeframe = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), timeframelayout.RectTransform), NumberType.Float)
+		timeframe.DecimalsToDisplay = 2
+		timeframe.FloatValue = component.TimeFrame
+		timeframe.OnValueChanged = function()
+			component.TimeFrame = timeframe.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TimeFrame", component.TimeFrame)
+			end
+		end	
+		
+		local maxoutputlengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxoutputlengthlayout.isHorizontal = true
+		maxoutputlengthlayout.Stretch = true
+		maxoutputlengthlayout.RelativeSpacing = 0.001
+	
+		local maxoutputlengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxoutputlengthlayout.RectTransform), "Max Output Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxoutputlength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxoutputlengthlayout.RectTransform), NumberType.Int)
+		maxoutputlength.IntValue = component.MaxOutputLength
+		maxoutputlength.MinValueInt = -1000000000
+		maxoutputlength.MaxValueInt = 1000000000
+		maxoutputlength.valueStep = 1
+		maxoutputlength.OnValueChanged = function()
+			component.MaxOutputLength = maxoutputlength.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxOutputLength", component.MaxOutputLength)
+			end
+		end	
+		
+		local outputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		outputlayout.isHorizontal = true
+		outputlayout.Stretch = true
+		outputlayout.RelativeSpacing = 0.001
+		
+		local outputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), outputlayout.RectTransform), "Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local output = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), outputlayout.RectTransform), "")
+		output.text = component.Output
+		output.OnTextChangedDelegate = function()
+			component.Output = output.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Output", component.Output)
+			end
+		end
+		
+		local falseoutputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		falseoutputlayout.isHorizontal = true
+		falseoutputlayout.Stretch = true
+		falseoutputlayout.RelativeSpacing = 0.001
+		
+		local falseoutputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), falseoutputlayout.RectTransform), "False Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local falseoutput = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), falseoutputlayout.RectTransform), "")
+		falseoutput.text = component.FalseOutput
+		falseoutput.OnTextChangedDelegate = function()
+			component.FalseOutput = falseoutput.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FalseOutput", component.FalseOutput)
+			end
+		end
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Greater Component End --
+	-- Equals Component Start --
+	local EqualsComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local timeframelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		timeframelayout.isHorizontal = true
+		timeframelayout.Stretch = true
+		timeframelayout.RelativeSpacing = 0.001
+	
+		local timeframetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), timeframelayout.RectTransform), "Timeframe", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local timeframe = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), timeframelayout.RectTransform), NumberType.Float)
+		timeframe.DecimalsToDisplay = 2
+		timeframe.FloatValue = component.TimeFrame
+		timeframe.OnValueChanged = function()
+			component.TimeFrame = timeframe.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TimeFrame", component.TimeFrame)
+			end
+		end	
+		
+		local maxoutputlengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxoutputlengthlayout.isHorizontal = true
+		maxoutputlengthlayout.Stretch = true
+		maxoutputlengthlayout.RelativeSpacing = 0.001
+	
+		local maxoutputlengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxoutputlengthlayout.RectTransform), "Max Output Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxoutputlength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxoutputlengthlayout.RectTransform), NumberType.Int)
+		maxoutputlength.IntValue = component.MaxOutputLength
+		maxoutputlength.MinValueInt = -1000000000
+		maxoutputlength.MaxValueInt = 1000000000
+		maxoutputlength.valueStep = 1
+		maxoutputlength.OnValueChanged = function()
+			component.MaxOutputLength = maxoutputlength.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxOutputLength", component.MaxOutputLength)
+			end
+		end	
+		
+		local outputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		outputlayout.isHorizontal = true
+		outputlayout.Stretch = true
+		outputlayout.RelativeSpacing = 0.001
+		
+		local outputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), outputlayout.RectTransform), "Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local output = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), outputlayout.RectTransform), "")
+		output.text = component.Output
+		output.OnTextChangedDelegate = function()
+			component.Output = output.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Output", component.Output)
+			end
+		end
+		
+		local falseoutputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		falseoutputlayout.isHorizontal = true
+		falseoutputlayout.Stretch = true
+		falseoutputlayout.RelativeSpacing = 0.001
+		
+		local falseoutputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), falseoutputlayout.RectTransform), "False Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local falseoutput = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), falseoutputlayout.RectTransform), "")
+		falseoutput.text = component.FalseOutput
+		falseoutput.OnTextChangedDelegate = function()
+			component.FalseOutput = falseoutput.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FalseOutput", component.FalseOutput)
+			end
+		end
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Equals Component End --
+	-- Xor Component Start --
+	local XorComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local timeframelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		timeframelayout.isHorizontal = true
+		timeframelayout.Stretch = true
+		timeframelayout.RelativeSpacing = 0.001
+	
+		local timeframetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), timeframelayout.RectTransform), "Timeframe", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local timeframe = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), timeframelayout.RectTransform), NumberType.Float)
+		timeframe.DecimalsToDisplay = 2
+		timeframe.FloatValue = component.TimeFrame
+		timeframe.OnValueChanged = function()
+			component.TimeFrame = timeframe.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TimeFrame", component.TimeFrame)
+			end
+		end	
+		
+		local maxoutputlengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxoutputlengthlayout.isHorizontal = true
+		maxoutputlengthlayout.Stretch = true
+		maxoutputlengthlayout.RelativeSpacing = 0.001
+	
+		local maxoutputlengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxoutputlengthlayout.RectTransform), "Max Output Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxoutputlength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxoutputlengthlayout.RectTransform), NumberType.Int)
+		maxoutputlength.IntValue = component.MaxOutputLength
+		maxoutputlength.MinValueInt = -1000000000
+		maxoutputlength.MaxValueInt = 1000000000
+		maxoutputlength.valueStep = 1
+		maxoutputlength.OnValueChanged = function()
+			component.MaxOutputLength = maxoutputlength.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxOutputLength", component.MaxOutputLength)
+			end
+		end	
+		
+		local outputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		outputlayout.isHorizontal = true
+		outputlayout.Stretch = true
+		outputlayout.RelativeSpacing = 0.001
+		
+		local outputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), outputlayout.RectTransform), "Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local output = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), outputlayout.RectTransform), "")
+		output.text = component.Output
+		output.OnTextChangedDelegate = function()
+			component.Output = output.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Output", component.Output)
+			end
+		end
+		
+		local falseoutputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		falseoutputlayout.isHorizontal = true
+		falseoutputlayout.Stretch = true
+		falseoutputlayout.RelativeSpacing = 0.001
+		
+		local falseoutputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), falseoutputlayout.RectTransform), "False Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local falseoutput = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), falseoutputlayout.RectTransform), "")
+		falseoutput.text = component.FalseOutput
+		falseoutput.OnTextChangedDelegate = function()
+			component.FalseOutput = falseoutput.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FalseOutput", component.FalseOutput)
+			end
+		end
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Xor Component End --
+	-- Or Component Start --
+	local OrComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local timeframelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		timeframelayout.isHorizontal = true
+		timeframelayout.Stretch = true
+		timeframelayout.RelativeSpacing = 0.001
+	
+		local timeframetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), timeframelayout.RectTransform), "Timeframe", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local timeframe = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), timeframelayout.RectTransform), NumberType.Float)
+		timeframe.DecimalsToDisplay = 2
+		timeframe.FloatValue = component.TimeFrame
+		timeframe.OnValueChanged = function()
+			component.TimeFrame = timeframe.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TimeFrame", component.TimeFrame)
+			end
+		end	
+		
+		local maxoutputlengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxoutputlengthlayout.isHorizontal = true
+		maxoutputlengthlayout.Stretch = true
+		maxoutputlengthlayout.RelativeSpacing = 0.001
+	
+		local maxoutputlengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxoutputlengthlayout.RectTransform), "Max Output Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxoutputlength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxoutputlengthlayout.RectTransform), NumberType.Int)
+		maxoutputlength.IntValue = component.MaxOutputLength
+		maxoutputlength.MinValueInt = -1000000000
+		maxoutputlength.MaxValueInt = 1000000000
+		maxoutputlength.valueStep = 1
+		maxoutputlength.OnValueChanged = function()
+			component.MaxOutputLength = maxoutputlength.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxOutputLength", component.MaxOutputLength)
+			end
+		end	
+		
+		local outputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		outputlayout.isHorizontal = true
+		outputlayout.Stretch = true
+		outputlayout.RelativeSpacing = 0.001
+		
+		local outputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), outputlayout.RectTransform), "Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local output = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), outputlayout.RectTransform), "")
+		output.text = component.Output
+		output.OnTextChangedDelegate = function()
+			component.Output = output.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Output", component.Output)
+			end
+		end
+		
+		local falseoutputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		falseoutputlayout.isHorizontal = true
+		falseoutputlayout.Stretch = true
+		falseoutputlayout.RelativeSpacing = 0.001
+		
+		local falseoutputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), falseoutputlayout.RectTransform), "False Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local falseoutput = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), falseoutputlayout.RectTransform), "")
+		falseoutput.text = component.FalseOutput
+		falseoutput.OnTextChangedDelegate = function()
+			component.FalseOutput = falseoutput.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FalseOutput", component.FalseOutput)
+			end
+		end
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Or Component End --
+	-- SignalCheck Component Start --
+	local SignalCheckComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local maxoutputlengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxoutputlengthlayout.isHorizontal = true
+		maxoutputlengthlayout.Stretch = true
+		maxoutputlengthlayout.RelativeSpacing = 0.001
+	
+		local maxoutputlengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxoutputlengthlayout.RectTransform), "Max Output Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxoutputlength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxoutputlengthlayout.RectTransform), NumberType.Int)
+		maxoutputlength.IntValue = component.MaxOutputLength
+		maxoutputlength.MinValueInt = -1000000000
+		maxoutputlength.MaxValueInt = 1000000000
+		maxoutputlength.valueStep = 1
+		maxoutputlength.OnValueChanged = function()
+			component.MaxOutputLength = maxoutputlength.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxOutputLength", component.MaxOutputLength)
+			end
+		end	
+		
+		local outputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		outputlayout.isHorizontal = true
+		outputlayout.Stretch = true
+		outputlayout.RelativeSpacing = 0.001
+		
+		local outputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), outputlayout.RectTransform), "Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local output = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), outputlayout.RectTransform), "")
+		output.text = component.Output
+		output.OnTextChangedDelegate = function()
+			component.Output = output.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Output", component.Output)
+			end
+		end
+		
+		local falseoutputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		falseoutputlayout.isHorizontal = true
+		falseoutputlayout.Stretch = true
+		falseoutputlayout.RelativeSpacing = 0.001
+		
+		local falseoutputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), falseoutputlayout.RectTransform), "False Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local falseoutput = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), falseoutputlayout.RectTransform), "")
+		falseoutput.text = component.FalseOutput
+		falseoutput.OnTextChangedDelegate = function()
+			component.FalseOutput = falseoutput.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FalseOutput", component.FalseOutput)
+			end
+		end
+		
+		local targetsignallayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		targetsignallayout.isHorizontal = true
+		targetsignallayout.Stretch = true
+		targetsignallayout.RelativeSpacing = 0.001
+		
+		local targetsignaltext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), targetsignallayout.RectTransform), "Target Signal", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local targetsignal = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), targetsignallayout.RectTransform), "")
+		targetsignal.text = component.TargetSignal
+		targetsignal.OnTextChangedDelegate = function()
+			component.TargetSignal = targetsignal.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TargetSignal", component.TargetSignal)
+			end
+		end
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- SignalCheck Component End --
+	-- Concat Component Start --
+	local ConcatComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local maxoutputlengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxoutputlengthlayout.isHorizontal = true
+		maxoutputlengthlayout.Stretch = true
+		maxoutputlengthlayout.RelativeSpacing = 0.001
+	
+		local maxoutputlengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxoutputlengthlayout.RectTransform), "Max Output Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxoutputlength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxoutputlengthlayout.RectTransform), NumberType.Int)
+		maxoutputlength.IntValue = component.MaxOutputLength
+		maxoutputlength.MinValueInt = -1000000000
+		maxoutputlength.MaxValueInt = 1000000000
+		maxoutputlength.valueStep = 1
+		maxoutputlength.OnValueChanged = function()
+			component.MaxOutputLength = maxoutputlength.IntValue
+		end	
+		
+		local separatorlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		separatorlayout.isHorizontal = true
+		separatorlayout.Stretch = true
+		separatorlayout.RelativeSpacing = 0.001
+		
+		local separatortext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), separatorlayout.RectTransform), "Separator", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local separator = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), separatorlayout.RectTransform), "")
+		separator.text = component.Separator
+		separator.OnTextChangedDelegate = function()
+			component.Separator = separator.text
+		end
+		
+		local timeframelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		timeframelayout.isHorizontal = true
+		timeframelayout.Stretch = true
+		timeframelayout.RelativeSpacing = 0.001
+	
+		local timeframetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), timeframelayout.RectTransform), "Timeframe", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local timeframe = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), timeframelayout.RectTransform), NumberType.Float)
+		timeframe.DecimalsToDisplay = 2
+		timeframe.FloatValue = component.TimeFrame
+		timeframe.OnValueChanged = function()
+			component.TimeFrame = timeframe.FloatValue
+		end	
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+		end
+		
+	end
+	-- Concat Component End --
+	-- Memory Component Start --
+	local MemoryComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local maxvaluelengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxvaluelengthlayout.isHorizontal = true
+		maxvaluelengthlayout.Stretch = true
+		maxvaluelengthlayout.RelativeSpacing = 0.001
+	
+		local maxvaluelengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxvaluelengthlayout.RectTransform), "Max Value Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxvaluelength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxvaluelengthlayout.RectTransform), NumberType.Int)
+		maxvaluelength.IntValue = component.MaxValueLength
+		maxvaluelength.MinValueInt = -1000000000
+		maxvaluelength.MaxValueInt = 1000000000
+		maxvaluelength.valueStep = 1
+		maxvaluelength.OnValueChanged = function()
+			component.MaxValueLength = maxvaluelength.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxValueLength", component.MaxValueLength)
+			end
+		end	
+		
+		local valuelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		valuelayout.isHorizontal = true
+		valuelayout.Stretch = true
+		valuelayout.RelativeSpacing = 0.001
+		
+		local valuetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), valuelayout.RectTransform), "Value", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local value = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), valuelayout.RectTransform), "")
+		value.text = component.Value
+		value.OnTextChangedDelegate = function()
+			component.Value = value.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Value", component.Value)
+			end
+		end
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local writeable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Writeable")
+		writeable.Selected = component.Writeable
+		writeable.OnSelected = function()
+			component.Writeable = writeable.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Writeable", component.Writeable)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Memory Component End --
+	-- Subtract Component Start --
+	local SubtractComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local clampmaxlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		clampmaxlayout.isHorizontal = true
+		clampmaxlayout.Stretch = true
+		clampmaxlayout.RelativeSpacing = 0.001
+	
+		local clampmaxtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), clampmaxlayout.RectTransform), "Clamp max", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local clampmax = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), clampmaxlayout.RectTransform), NumberType.Float)
+		clampmax.MinValueFloat = -999999
+		clampmax.MaxValueFloat = 999999
+		clampmax.valueStep = 0.1
+		clampmax.FloatValue = component.Clampmax
+		clampmax.OnValueChanged = function()
+			component.Clampmax = clampmax.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Clampmax", component.Clampmax)
+			end
+		end	
+	
+		local clampminlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		clampminlayout.isHorizontal = true
+		clampminlayout.Stretch = true
+		clampminlayout.RelativeSpacing = 0.001
+	
+		local clampmintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), clampminlayout.RectTransform), "Clamp min", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local clampmin = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), clampminlayout.RectTransform), NumberType.Float)
+		clampmin.MinValueFloat = -999999
+		clampmin.MaxValueFloat = 999999
+		clampmin.valueStep = 0.1
+		clampmin.FloatValue = component.Clampmin
+		clampmin.OnValueChanged = function()
+			component.Clampmin = clampmin.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Clampmin", component.Clampmin)
+			end
+		end	
+
+		local timeframelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		timeframelayout.isHorizontal = true
+		timeframelayout.Stretch = true
+		timeframelayout.RelativeSpacing = 0.001
+	
+		local timeframetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), timeframelayout.RectTransform), "Timeframe", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local timeframe = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), timeframelayout.RectTransform), NumberType.Float)
+		timeframe.DecimalsToDisplay = 2
+		timeframe.FloatValue = component.TimeFrame
+		timeframe.OnValueChanged = function()
+			component.TimeFrame = timeframe.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TimeFrame", component.TimeFrame)
+			end
+		end	
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Subtract Component End --
+	-- Divide Component Start --
+	local DivideComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local clampmaxlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		clampmaxlayout.isHorizontal = true
+		clampmaxlayout.Stretch = true
+		clampmaxlayout.RelativeSpacing = 0.001
+	
+		local clampmaxtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), clampmaxlayout.RectTransform), "Clamp max", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local clampmax = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), clampmaxlayout.RectTransform), NumberType.Float)
+		clampmax.MinValueFloat = -999999
+		clampmax.MaxValueFloat = 999999
+		clampmax.valueStep = 0.1
+		clampmax.FloatValue = component.Clampmax
+		clampmax.OnValueChanged = function()
+			component.Clampmax = clampmax.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Clampmax", component.Clampmax)
+			end
+		end	
+	
+		local clampminlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		clampminlayout.isHorizontal = true
+		clampminlayout.Stretch = true
+		clampminlayout.RelativeSpacing = 0.001
+	
+		local clampmintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), clampminlayout.RectTransform), "Clamp min", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local clampmin = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), clampminlayout.RectTransform), NumberType.Float)
+		clampmin.MinValueFloat = -999999
+		clampmin.MaxValueFloat = 999999
+		clampmin.valueStep = 0.1
+		clampmin.FloatValue = component.Clampmin
+		clampmin.OnValueChanged = function()
+			component.Clampmin = clampmin.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Clampmin", component.Clampmin)
+			end
+		end	
+
+		local timeframelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		timeframelayout.isHorizontal = true
+		timeframelayout.Stretch = true
+		timeframelayout.RelativeSpacing = 0.001
+	
+		local timeframetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), timeframelayout.RectTransform), "Timeframe", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local timeframe = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), timeframelayout.RectTransform), NumberType.Float)
+		timeframe.DecimalsToDisplay = 2
+		timeframe.FloatValue = component.TimeFrame
+		timeframe.OnValueChanged = function()
+			component.TimeFrame = timeframe.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".TimeFrame", component.TimeFrame)
+			end
+		end	
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Divide Component End --
+	-- Oscillator Component Start --
+	local OscillatorComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.7), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local outputtypelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		outputtypelayout.isHorizontal = true
+		outputtypelayout.Stretch = true
+		outputtypelayout.RelativeSpacing = 0.001
+	
+		local outputtypetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), outputtypelayout.RectTransform), "Output Type", nil, nil, GUI.Alignment.CenterLeft)
+
+		local outputtype = GUI.DropDown(GUI.RectTransform(Vector2(1.2, 1), outputtypelayout.RectTransform), "", 3, nil, false)
+		outputtype.AddItem("Pulse", component.WaveType.Pulse)
+		outputtype.AddItem("Sawtooth", component.WaveType.Sawtooth)
+		outputtype.AddItem("Sine", component.WaveType.Sine)
+		outputtype.AddItem("Square", component.WaveType.Square)
+		outputtype.AddItem("Triangle", component.WaveType.Triangle)
+		outputtype.OnSelected = function (guiComponent, object)
+			component.OutputType = object
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".OutputType", component.OutputType)
+			end
+		end
+	
+		local frequencylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		frequencylayout.isHorizontal = true
+		frequencylayout.Stretch = true
+		frequencylayout.RelativeSpacing = 0.001
+	
+		local frequencytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), frequencylayout.RectTransform), "Frequency", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local frequency = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), frequencylayout.RectTransform), NumberType.Float)
+		frequency.DecimalsToDisplay = 2
+		frequency.FloatValue = component.Frequency
+		frequency.OnValueChanged = function()
+			component.Frequency = frequency.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Frequency", component.Frequency)
+			end
+		end
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Oscillator Component End --
+	-- Color Component Start --
+	local ColorComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.52), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local usehsv = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Use HSV")
+		usehsv.Selected = component.UseHSV
+		usehsv.OnSelected = function()
+			component.UseHSV = usehsv.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".UseHSV", component.UseHSV)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Color Component End --
+	-- Not Component Start --
+	local NotComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.52), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local continuousoutput = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Continuous Output")
+		continuousoutput.Selected = component.ContinuousOutput
+		continuousoutput.OnSelected = function()
+			component.ContinuousOutput = continuousoutput.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".ContinuousOutput", component.ContinuousOutput)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Not Component End --
+	-- TrigonometricFunction Component Start --
+	local TrigonometricComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.52), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local useradians = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Use Radians")
+		useradians.Selected = component.UseRadians
+		useradians.OnSelected = function()
+			component.UseRadians = useradians.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".UseRadians", component.UseRadians)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- TrigonometricFunction Component End --
+	-- Function Component Start --
+	local FunctionComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end	
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.52), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Function Component End --
+	-- Exponentiation Component Start --
+	local ExponentiationComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.52), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local exponent = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Exponent")
+		exponent.Selected = component.Exponent
+		exponent.OnSelected = function()
+			component.Exponent = exponent.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Exponent", component.Exponent)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Exponentiation Component End --
+	-- Modulo Component Start --
+	local ModuloComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.52), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local modulus = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Modulus")
+		modulus.Selected = component.Modulus
+		modulus.OnSelected = function()
+			component.Modulus = modulus.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Modulus", component.Modulus)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Modulo Component End --
+	-- Delay Component Start --
+	local DelayComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.6), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local delaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		delaylayout.isHorizontal = true
+		delaylayout.Stretch = true
+		delaylayout.RelativeSpacing = 0.001
+	
+		local delaytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), delaylayout.RectTransform), "Delay", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local delay = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), delaylayout.RectTransform), NumberType.Float)
+		delay.DecimalsToDisplay = 2
+		delay.MinValueFloat = 0
+		delay.MaxValueFloat = 60
+		delay.valueStep = 0.1
+		delay.FloatValue = component.Delay
+		delay.OnValueChanged = function()
+			component.Delay = delay.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Delay", component.Delay)
+			end
+		end	
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.16), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+		
+		local resetwhensignalreceived = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Reset When Signal Received")
+		resetwhensignalreceived.Selected = component.ResetWhenSignalReceived
+		resetwhensignalreceived.OnSelected = function()
+			component.ResetWhenSignalReceived = resetwhensignalreceived.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".ResetWhenSignalReceived", component.ResetWhenSignalReceived)
+			end
+		end
+		
+		local resetwhendifferentsignalreceived = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Reset When Different Signal Received")
+		resetwhendifferentsignalreceived.Selected = component.ResetWhenDifferentSignalReceived
+		resetwhendifferentsignalreceived.OnSelected = function()
+			component.ResetWhenDifferentSignalReceived = resetwhendifferentsignalreceived.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".ResetWhenDifferentSignalReceived", component.ResetWhenDifferentSignalReceived)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.5), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.125), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Delay Component End --
+	-- Relay Component Start --
+	local RelayComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.95), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.125), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		local maxpowerlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
+		maxpowerlayout.isHorizontal = true
+		maxpowerlayout.Stretch = true
+		maxpowerlayout.RelativeSpacing = 0.001
+	
+		local maxpowertext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxpowerlayout.RectTransform), "Max Power", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxpower = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxpowerlayout.RectTransform), NumberType.Float)
+		maxpower.FloatValue = component.MaxPower
+		maxpower.OnValueChanged = function()
+			component.MaxPower = maxpower.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxPower", component.MaxPower)
+			end
+		end
+	
+		local overloadvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
+		overloadvoltagelayout.isHorizontal = true
+		overloadvoltagelayout.Stretch = true
+		overloadvoltagelayout.RelativeSpacing = 0.001
+	
+		local overloadvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), overloadvoltagelayout.RectTransform), "Overload Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local overloadvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), overloadvoltagelayout.RectTransform), NumberType.Float)
+		overloadvoltage.FloatValue = component.OverloadVoltage
+		overloadvoltage.OnValueChanged = function()
+			component.OverloadVoltage = overloadvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".OverloadVoltage", component.OverloadVoltage)
+			end
+		end
+	
+		local fireprobabilitylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
+		fireprobabilitylayout.isHorizontal = true
+		fireprobabilitylayout.Stretch = true
+		fireprobabilitylayout.RelativeSpacing = 0.001
+	
+		local fireprobabilitytext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), fireprobabilitylayout.RectTransform), "Fire Probability", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local fireprobability = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), fireprobabilitylayout.RectTransform), NumberType.Float)
+		fireprobability.MinValueFloat = 0
+		fireprobability.MaxValueFloat = 1
+		fireprobability.valueStep = 0.1
+		fireprobability.FloatValue = component.FireProbability
+		fireprobability.OnValueChanged = function()
+			component.FireProbability = fireprobability.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FireProbability", component.FireProbability)
+			end
+		end
+	
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
+		minvoltagelayout.isHorizontal = true
+		minvoltagelayout.Stretch = true
+		minvoltagelayout.RelativeSpacing = 0.001
+	
+		local minvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minvoltagelayout.RectTransform), "Min Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minvoltagelayout.RectTransform), NumberType.Float)
+		minvoltage.FloatValue = component.MinVoltage
+		minvoltage.OnValueChanged = function()
+			component.MinVoltage = minvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinVoltage", component.MinVoltage)
+			end
+		end
+	
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
+		powerconsumptionlayout.isHorizontal = true
+		powerconsumptionlayout.Stretch = true
+		powerconsumptionlayout.RelativeSpacing = 0.001
+	
+		local powerconsumptiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), powerconsumptionlayout.RectTransform), "Power Consumption", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local powerconsumption = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), powerconsumptionlayout.RectTransform), NumberType.Float)
+		powerconsumption.FloatValue = component.PowerConsumption
+		powerconsumption.OnValueChanged = function()
+			component.PowerConsumption = powerconsumption.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PowerConsumption", component.PowerConsumption)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local ison = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Is On")
+		ison.Selected = component.IsOn
+		ison.OnSelected = function()
+			component.IsOn = ison.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".IsOn", component.IsOn)
+			end
+		end
+
+		local canbeoverloaded = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Overloaded")
+		canbeoverloaded.Selected = component.CanBeOverloaded
+		canbeoverloaded.OnSelected = function()
+			component.CanBeOverloaded = canbeoverloaded.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBeOverloaded", component.CanBeOverloaded)
+			end
+		end
+
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		vulnerabletoemp.Selected = component.VulnerableToEMP
+		vulnerabletoemp.OnSelected = function()
+			component.VulnerableToEMP = vulnerabletoemp.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".VulnerableToEMP", component.VulnerableToEMP)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+
+	end
+	-- Relay Component End --
+	-- Wifi Component Start --
+	local WifiComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.66), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local rangelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		rangelayout.isHorizontal = true
+		rangelayout.Stretch = true
+		rangelayout.RelativeSpacing = 0.001
+	
+		local rangetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), rangelayout.RectTransform), "Range", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local range = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), rangelayout.RectTransform), NumberType.Float)
+		range.FloatValue = component.Range
+		range.OnValueChanged = function()
+			component.Range = range.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Range", component.Range)
+			end
+		end
+	
+		local channellayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		channellayout.isHorizontal = true
+		channellayout.Stretch = true
+		channellayout.RelativeSpacing = 0.001
+	
+		local channeltext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), channellayout.RectTransform), "Channel", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local channel = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), channellayout.RectTransform), NumberType.Float)
+		channel.MinValueFloat = -1000000000
+		channel.MaxValueFloat = 1000000000
+		channel.valueStep = 1
+		channel.FloatValue = component.Channel
+		channel.OnValueChanged = function()
+			component.Channel = channel.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Channel", component.Channel)
+			end
+		end
+	
+		local minchatmessageintervallayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		minchatmessageintervallayout.isHorizontal = true
+		minchatmessageintervallayout.Stretch = true
+		minchatmessageintervallayout.RelativeSpacing = 0.001
+	
+		local minchatmessageintervaltext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minchatmessageintervallayout.RectTransform), "Min Chat Message Interval", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minchatmessageinterval = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minchatmessageintervallayout.RectTransform), NumberType.Float)
+		minchatmessageinterval.FloatValue = component.MinChatMessageInterval
+		minchatmessageinterval.OnValueChanged = function()
+			component.MinChatMessageInterval = minchatmessageinterval.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinChatMessageInterval", component.MinChatMessageInterval)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local allowcrossteamcommunication = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow Cross-Team Communication")
+		allowcrossteamcommunication.Selected = component.AllowCrossTeamCommunication
+		allowcrossteamcommunication.OnSelected = function()
+			component.AllowCrossTeamCommunication = allowcrossteamcommunication.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowCrossTeamCommunication", component.AllowCrossTeamCommunication)
+			end
+		end
+
+		local linktochat = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Link to Chat")
+		linktochat.Selected = component.LinkToChat
+		linktochat.OnSelected = function()
+			component.LinkToChat = linktochat.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".LinkToChat", component.LinkToChat)
+			end
+		end
+
+		local discardduplicatechatmessages = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Discard Duplicate Chat Messages")
+		discardduplicatechatmessages.Selected = component.DiscardDuplicateChatMessages
+		discardduplicatechatmessages.OnSelected = function()
+			component.DiscardDuplicateChatMessages = discardduplicatechatmessages.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".DiscardDuplicateChatMessages", component.DiscardDuplicateChatMessages)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+
+	end
+	-- Wifi Component End --
+	-- Regex Find Component Start --
+	local RegExFindComponentfunction = function(component, key)
+		
+		if EditGUI.Settings.components == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.66), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+	
+		local maxoutputlengthlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		maxoutputlengthlayout.isHorizontal = true
+		maxoutputlengthlayout.Stretch = true
+		maxoutputlengthlayout.RelativeSpacing = 0.001
+	
+		local maxoutputlengthtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), maxoutputlengthlayout.RectTransform), "Max Output Length", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local maxoutputlength = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), maxoutputlengthlayout.RectTransform), NumberType.Int)
+		maxoutputlength.IntValue = component.MaxOutputLength
+		maxoutputlength.MinValueInt = -1000000000
+		maxoutputlength.MaxValueInt = 1000000000
+		maxoutputlength.valueStep = 1
+		maxoutputlength.OnValueChanged = function()
+			component.MaxOutputLength = maxoutputlength.IntValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MaxOutputLength", component.MaxOutputLength)
+			end
+		end	
+		
+		local outputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		outputlayout.isHorizontal = true
+		outputlayout.Stretch = true
+		outputlayout.RelativeSpacing = 0.001
+		
+		local outputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), outputlayout.RectTransform), "Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local output = GUI.TextBox(GUI.RectTransform(Vector2(1.2 , 1), outputlayout.RectTransform), "")
+		output.text = component.Output
+		output.OnTextChangedDelegate = function()
+			component.Output = output.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Output", component.Output)
+			end
+		end
+		
+		local falseoutputlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		falseoutputlayout.isHorizontal = true
+		falseoutputlayout.Stretch = true
+		falseoutputlayout.RelativeSpacing = 0.001
+		
+		local falseoutputtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), falseoutputlayout.RectTransform), "False Output", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local falseoutput = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), falseoutputlayout.RectTransform), "")
+		falseoutput.text = component.FalseOutput
+		falseoutput.OnTextChangedDelegate = function()
+			component.FalseOutput = falseoutput.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".FalseOutput", component.FalseOutput)
+			end
+		end
+		
+		local expressionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), nil)
+		expressionlayout.isHorizontal = true
+		expressionlayout.Stretch = true
+		expressionlayout.RelativeSpacing = 0.001
+		
+		local expressiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), expressionlayout.RectTransform), "Expression", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local expression = GUI.TextBox(GUI.RectTransform(Vector2(1.2, 1), expressionlayout.RectTransform), "")
+		expression.text = component.Expression
+		expression.OnTextChangedDelegate = function()
+			component.Expression = expression.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Expression", component.Expression)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local usecapturegroup = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Use Capture Group")
+		usecapturegroup.Selected = component.UseCaptureGroup
+		usecapturegroup.OnSelected = function()
+			component.UseCaptureGroup = usecapturegroup.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".UseCaptureGroup", component.UseCaptureGroup)
+			end
+		end
+
+		local continuousoutput = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Continuous Output")
+		continuousoutput.Selected = component.ContinuousOutput
+		continuousoutput.OnSelected = function()
+			component.ContinuousOutput = continuousoutput.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".ContinuousOutput", component.ContinuousOutput)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+
+	end
+	-- Regex Find Component End --
+	
+	
+	-- Settings Start --
+	local Settingsfunction = function()
+	
+		if settings == false then
+			menu.RemoveChild(settingsmenu) 
+			return
+		end
+		
+		settingsmenu = GUI.ListBox(GUI.RectTransform(Vector2(0.93, 0.7), menuContent.RectTransform, GUI.Anchor.Center))
+		settingsmenu.RectTransform.AbsoluteOffset = Point(0, -17)
+	
+		local settingsList = GUI.ListBox(GUI.RectTransform(Vector2(1, 1), settingsmenu.Content.RectTransform, GUI.Anchor.TopCenter))
+
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.1), settingsList.Content.RectTransform), "Main Settings", nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.4
+		maintext.TextColor = Color(255,255,255)
+
+		local clientsidetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.08), settingsList.Content.RectTransform), "Clientside Settings", nil, nil, GUI.Alignment.Center)
+		clientsidetext.TextColor = Color(255,255,255)
+
+		local targetnoninteractablelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), settingsList.Content.RectTransform), nil)
+		targetnoninteractablelayout.isHorizontal = true
+		targetnoninteractablelayout.Stretch = true
+		targetnoninteractablelayout.RelativeSpacing = 0.001
+		
+		local targetnoninteractabletext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), targetnoninteractablelayout.RectTransform), "Target Non Interactable", nil, nil, GUI.Alignment.CenterLeft)
+
+		local targetnoninteractabledropdown = GUI.DropDown(GUI.RectTransform(Vector2(1.2, 1), targetnoninteractablelayout.RectTransform), "", 3, nil, false)
+		
+		if EditGUI.ClientsideSettings.targetnoninteractable == nil then
+			targetnoninteractabledropdown.text = "False"
+		else
+			targetnoninteractable = EditGUI.ClientsideSettings.targetnoninteractable
+			targetnoninteractabledropdown.text = EditGUI.ClientsideSettings.targetnoninteractable
+		end
+		
+		targetnoninteractabledropdown.AddItem("False", "False")
+		targetnoninteractabledropdown.AddItem("Target Both", "Target Both")
+		targetnoninteractabledropdown.AddItem("Target Only Non Interactable", "Target Only Non Interactable")
+		targetnoninteractabledropdown.OnSelected = function (guiComponent, object)
+			targetnoninteractable = object
+			EditGUI.ClientsideSettings.targetnoninteractable = object
+		end
+		
+		local targetitems = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Target Items")
+		
+		if EditGUI.ClientsideSettings.targetitems then
+			targetitems.Selected = EditGUI.ClientsideSettings.targetitems
+		else
+			targetitems.Selected = false
+		end
+		
+		targetitems.OnSelected = function ()
+			EditGUI.ClientsideSettings.targetitems = targetitems.Selected == true
+		end
+
+		local serversidetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.08), settingsList.Content.RectTransform), "Serverside Settings", nil, nil, GUI.Alignment.Center)
+		serversidetext.TextColor = Color(255,255,255)
+
+		local permissiondropdownlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), settingsList.Content.RectTransform), nil)
+		permissiondropdownlayout.isHorizontal = true
+		permissiondropdownlayout.Stretch = true
+		permissiondropdownlayout.RelativeSpacing = 0.001
+		
+		local permissiondropdowntext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), permissiondropdownlayout.RectTransform), "Required Permissions", nil, nil, GUI.Alignment.CenterLeft)
+
+		local permissiondropdown = GUI.DropDown(GUI.RectTransform(Vector2(1.2, 1), permissiondropdownlayout.RectTransform), "", 3, nil, false)
+		
+		if EditGUI.Settings.permissionsetting == nil then
+			permissiondropdown.text = "Above None"
+		else
+			permissionsetting = EditGUI.Settings.permissionsetting
+			if EditGUI.Settings.permissionsetting == 0 then
+				permissiondropdown.text = "Above None"
+			else
+				permissiondropdown.text = EditGUI.Settings.permissionsetting
+			end
+		end
+		
+		permissiondropdown.AddItem("All", "All")
+		permissiondropdown.AddItem("ConsoleCommands", "ConsoleCommands")
+		permissiondropdown.AddItem("ManagePermissions", "ManagePermissions")
+		permissiondropdown.AddItem("ManageSettings", "ManageSettings")
+		permissiondropdown.AddItem("Above None", "0")
+		permissiondropdown.AddItem("None", "None")
+		permissiondropdown.OnSelected = function (guiComponent, object)
+			EditGUI.Settings.permissionsetting = object
+		end
+
+		local tagstonottargetlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.07), settingsList.Content.RectTransform), nil)
+		tagstonottargetlayout.isHorizontal = true
+		tagstonottargetlayout.Stretch = true
+		tagstonottargetlayout.RelativeSpacing = 0.001
+
+		local tagstonottargettext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), tagstonottargetlayout.RectTransform), "Tags To Not Target", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local tagstonottarget = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), tagstonottargetlayout.RectTransform), "")
+		
+		if EditGUI.Settings.tagstonottarget then
+			tagstonottarget.Text = EditGUI.Settings.tagstonottarget
+		else
+			tagstonottarget.Text = ""
+		end
+		
+		tagstonottarget.OnTextChangedDelegate = function()
+			EditGUI.Settings.tagstonottarget = tagstonottarget.Text
+		end
+	
+		local allowtargetingnoninteractable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Allow Targeting Non Interactable")
+		allowtargetingnoninteractable.Selected = EditGUI.Settings.allowtargetingnoninteractable
+		allowtargetingnoninteractable.OnSelected = function ()
+			EditGUI.Settings.allowtargetingnoninteractable = allowtargetingnoninteractable.Selected == true
+		end
+	
+		local allowtargetingitems = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Allow Targeting Items")
+		
+		if EditGUI.Settings.allowtargetingitems then
+			allowtargetingitems.Selected = EditGUI.Settings.allowtargetingitems
+		else
+			allowtargetingitems.Selected = false
+		end
+		
+		allowtargetingitems.OnSelected = function ()
+			EditGUI.Settings.allowtargetingitems = allowtargetingitems.Selected == true
+		end
+	
+		-- Value Settings --
+	
+		ValueSettings = function()
+		
+			local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), settingsList.Content.RectTransform), nil)
+			local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+	
+			local subtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.08), settingsList.Content.RectTransform), "Value Settings", nil, nil, GUI.Alignment.Center)
+			subtext.TextScale = 1.3
+			subtext.TextColor = Color(255,255,255)
+		
+			local spritedepth = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Sprite Depth Enabled")
+			spritedepth.Selected = EditGUI.Settings.spritedepth
+			spritedepth.OnSelected = function ()
+				EditGUI.Settings.spritedepth = spritedepth.Selected == true
+			end
+		
+			local rotation = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Rotation Enabled")
+			rotation.Selected = EditGUI.Settings.rotation
+			rotation.OnSelected = function ()
+				EditGUI.Settings.rotation = rotation.Selected == true
+			end
+		
+			local scale = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Scale Enabled")
+			scale.Selected = EditGUI.Settings.scale
+			scale.OnSelected = function ()
+				EditGUI.Settings.scale = scale.Selected == true
+			end
+	
+			local scaleeditlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.105), settingsList.Content.RectTransform), nil)
+			scaleeditlayout.isHorizontal = true
+			scaleeditlayout.Stretch = true
+			scaleeditlayout.RelativeSpacing = 0.001
+			
+			local scalemintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), scaleeditlayout.RectTransform), "Scale Min", nil, nil, GUI.Alignment.CenterLeft)
+		
+			local scalemininput = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), scaleeditlayout.RectTransform), NumberType.Float)
+			scalemininput.DecimalsToDisplay = 3
+			scalemininput.FloatValue = EditGUI.Settings.scalemin
+			scalemininput.MinValueFloat = 0.001
+			scalemininput.MaxValueFloat = 0.999
+			scalemininput.valueStep = 0.1
+			scalemininput.OnValueChanged = function ()
+				EditGUI.Settings.scalemin = scalemininput.FloatValue
+			end
+	
+			local scalemaxtext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), scaleeditlayout.RectTransform), "Scale Max", nil, nil, GUI.Alignment.CenterLeft)
+		
+			local scalemaxinput = GUI.NumberInput(GUI.RectTransform(Vector2(1, 1), scaleeditlayout.RectTransform), NumberType.Float)
+			scalemaxinput.DecimalsToDisplay = 3
+			scalemaxinput.FloatValue = EditGUI.Settings.scalemax
+			scalemaxinput.MinValueFloat = 0.001
+			scalemaxinput.MaxValueFloat = 0.999
+			scalemaxinput.valueStep = 0.1
+			scalemaxinput.OnValueChanged = function ()
+				EditGUI.Settings.scalemax = scalemaxinput.FloatValue
+			end	
+		
+			local condition = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Condition Enabled")
+			condition.Selected = EditGUI.Settings.condition
+			condition.OnSelected = function ()
+				EditGUI.Settings.condition = condition.Selected == true
+			end
+		
+			local spritecolor = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Sprite Color Enabled")
+			spritecolor.Selected = EditGUI.Settings.spritecolor
+			spritecolor.OnSelected = function ()
+				EditGUI.Settings.spritecolor = spritecolor.Selected == true
+			end
+		
+			local alpha = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Alpha Enabled")
+			alpha.Selected = EditGUI.Settings.alpha
+			alpha.OnSelected = function ()
+				EditGUI.Settings.alpha = alpha.Selected == true
+			end
+
+			local tags = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Tags Enabled")
+			tags.Selected = EditGUI.Settings.tags
+			tags.OnSelected = function ()
+				EditGUI.Settings.tags = tags.Selected == true
+			end
+		
+			local description = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Description Enabled")
+			description.Selected = EditGUI.Settings.description
+			description.OnSelected = function ()
+				EditGUI.Settings.description = description.Selected == true
+			end
+		
+			local noninteractable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Non Interactable Enabled")
+			noninteractable.Selected = EditGUI.Settings.noninteractable
+			noninteractable.OnSelected = function ()
+				EditGUI.Settings.noninteractable = noninteractable.Selected == true
 			end
 			
-			if CLIENT and Game.IsMultiplayer then
-				itemeditnetwork = Networking.Start("servermsgstart")
+			local nonplayerteaminteractable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Non-Player Team Interactable Enabled")
+			nonplayerteaminteractable.Selected = EditGUI.Settings.nonplayerteaminteractable
+			nonplayerteaminteractable.OnSelected = function ()
+				EditGUI.Settings.nonplayerteaminteractable = nonplayerteaminteractable.Selected == true
+			end
+			
+			local invulnerabletodamage = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Invulnerable to Damage Enabled")
+			invulnerabletodamage.Selected = EditGUI.Settings.invulnerabletodamage
+			invulnerabletodamage.OnSelected = function ()
+				EditGUI.Settings.invulnerabletodamage = invulnerabletodamage.Selected == true
+			end
+		
+			local displaysidebysidewhenlinked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Display Side By Side When Linked Enabled")
+			displaysidebysidewhenlinked.Selected = EditGUI.Settings.displaysidebysidewhenlinked
+			displaysidebysidewhenlinked.OnSelected = function ()
+				EditGUI.Settings.displaysidebysidewhenlinked = displaysidebysidewhenlinked.Selected == true
+			end
+			
+			local hiddeningame = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Hidden In Game Enabled")
+			hiddeningame.Selected = EditGUI.Settings.hiddeningame
+			hiddeningame.OnSelected = function ()
+				EditGUI.Settings.hiddeningame = hiddeningame.Selected == true
+			end
+		
+			local mirror = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Mirror Enabled")
+			mirror.Selected = EditGUI.Settings.mirror
+			mirror.OnSelected = function ()
+				EditGUI.Settings.mirror = mirror.Selected == true
+			end
+		
+			-- Components --
+			
+			local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), settingsList.Content.RectTransform), nil)
+			local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+	
+			local subtext2 = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.08), settingsList.Content.RectTransform), "Enabled Components", nil, nil, GUI.Alignment.Center)
+			subtext2.TextScale = 1.3
+			subtext2.TextColor = Color(255,255,255)
+			
+			local lightcomponent = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Light Component Enabled")
+			lightcomponent.Selected = EditGUI.Settings.lightcomponent
+			lightcomponent.OnSelected = function ()
+				EditGUI.Settings.lightcomponent = lightcomponent.Selected == true
+			end
+		
+			local holdable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Holdable Component Enabled")
+			holdable.Selected = EditGUI.Settings.holdable
+			holdable.OnSelected = function ()
+				EditGUI.Settings.holdable = holdable.Selected == true
+			end
+			
+			local connectionpanel = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "ConnectionPanel Component Enabled")
+			connectionpanel.Selected = EditGUI.Settings.connectionpanel
+			connectionpanel.OnSelected = function ()
+				EditGUI.Settings.connectionpanel = connectionpanel.Selected == true
+			end
+			
+			local fabricator = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Fabricator Component Enabled")
+			fabricator.Selected = EditGUI.Settings.fabricator
+			fabricator.OnSelected = function ()
+				EditGUI.Settings.fabricator = fabricator.Selected == true
+			end
+			
+			local deconstructor = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Deconstructor Component Enabled")
+			deconstructor.Selected = EditGUI.Settings.deconstructor
+			deconstructor.OnSelected = function ()
+				EditGUI.Settings.deconstructor = deconstructor.Selected == true
+			end
+			
+			local reactor = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Reactor Component Enabled")
+			reactor.Selected = EditGUI.Settings.reactor
+			reactor.OnSelected = function ()
+				EditGUI.Settings.reactor = reactor.Selected == true
+			end
+			
+			local oxygengenerator = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "OxygenGenerator Component Enabled")
+			oxygengenerator.Selected = EditGUI.Settings.oxygengenerator
+			oxygengenerator.OnSelected = function ()
+				EditGUI.Settings.oxygengenerator = oxygengenerator.Selected == true
+			end
+			
+			local repairable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Repairable Component Enabled")
+			repairable.Selected = EditGUI.Settings.repairable
+			repairable.OnSelected = function ()
+				EditGUI.Settings.repairable = repairable.Selected == true
+			end
+			
+			local powertransfer = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "PowerTransfer Component Enabled")
+			powertransfer.Selected = EditGUI.Settings.powertransfer
+			powertransfer.OnSelected = function ()
+				EditGUI.Settings.powertransfer = powertransfer.Selected == true
+			end
+			
+			local itemcontainer = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "ItemContainer Component Enabled")
+			itemcontainer.Selected = EditGUI.Settings.itemcontainer
+			itemcontainer.OnSelected = function ()
+				EditGUI.Settings.itemcontainer = itemcontainer.Selected == true
+			end
+			
+			local itemlabel = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "ItemLabel Component Enabled")
+			itemlabel.Selected = EditGUI.Settings.itemlabel
+			itemlabel.OnSelected = function ()
+				EditGUI.Settings.itemlabel = itemlabel.Selected == true
+			end
+			
+			local quality = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Quality Component Enabled")
+			quality.Selected = EditGUI.Settings.quality
+			quality.OnSelected = function ()
+				EditGUI.Settings.quality = quality.Selected == true
+			end
+			
+			local components = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Components Enabled")
+			components.Selected = EditGUI.Settings.components
+			components.OnSelected = function ()
+				EditGUI.Settings.components = components.Selected == true
+			end
+			
+		end
+		
+		if EditGUI.Settings.allowtargetingnoninteractable == true then
+			targetnoninteractablelayout.visible = true
+		else
+			targetnoninteractablelayout.visible = false
+		end
+		if EditGUI.Settings.allowtargetingitems == true then
+			targetitems.visible = true
+		else
+			targetitems.visible = false
+		end
+		
+		if Game.IsMultiplayer then
+			if EditGUI.owner.HasPermission(ClientPermissions.All) then
+				permissiondropdownlayout.visible = true
+				allowtargetingitems.visible = true
+				allowtargetingnoninteractable.visible = true
+				tagstonottargetlayout.visible = true
+				ValueSettings()
+			else
+				permissiondropdownlayout.visible = false
+				allowtargetingitems.visible = false
+				allowtargetingnoninteractable.visible = false
+				tagstonottargetlayout.visible = false
+			end
+		else
+			ValueSettings()
+		end
+		
+	end
+	-- Settings End --
+	
+	Links = function()
+		if itemedit1 and itemedit2 ~= nil then
+			local isLinked = false
+    
+			for key, value in pairs(itemedit1.linkedTo) do
+				if value == itemedit2 then
+					isLinked = true
+					break
+				end
+			end
+		
+			if isLinked then
+				Unlink = true
+				linktargets.Text = "Unlink"
+			else
+				Unlink = false
+				linktargets.Text = "Link"
+			end
+		end
+	end
+	
+	local functionTable = {
+	LightComponent = LightComponentfunction,
+	Holdable = Holdablefunction,
+	ConnectionPanel = ConnectionPanelfunction,
+	Fabricator = Fabricatorfunction,
+	Deconstructor = Deconstructorfunction,
+	Reactor = Reactorfunction,
+	OxygenGenerator = OxygenGeneratorfunction,
+	Repairable = Repairablefunction,
+	ItemContainer = ItemContainerfunction,
+	ItemLabel = ItemLabelfunction,
+	Quality = Qualityfunction,
+	AndComponent = AndComponentfunction,
+	GreaterComponent = GreaterComponentfunction,
+	EqualsComponent = EqualsComponentfunction,
+	XorComponent = XorComponentfunction,
+	OrComponent = OrComponentfunction,
+	SignalCheckComponent = SignalCheckComponentfunction,
+	ConcatComponent = ConcatComponentfunction,
+	MemoryComponent = MemoryComponentfunction,
+	SubtractComponent = SubtractComponentfunction,
+	DivideComponent = DivideComponentfunction,
+	OscillatorComponent = OscillatorComponentfunction,
+	ColorComponent = ColorComponentfunction, 
+	NotComponent = NotComponentfunction, 
+	TrigonometricFunctionComponent = TrigonometricComponentfunction,
+	FunctionComponent = FunctionComponentfunction,
+	ExponentiationComponent = ExponentiationComponentfunction,
+	ModuloComponent = ModuloComponentfunction,
+	DelayComponent = DelayComponentfunction,
+	RelayComponent = RelayComponentfunction,
+	WifiComponent = WifiComponentfunction,
+	RegExFindComponent = RegExFindComponentfunction,
+	}
+	
+	local reloadvalues = function()
+		if componentGUIElements ~= nil then
+			for _, guiElement in ipairs(componentGUIElements) do
+				menuList.RemoveChild(guiElement.listBox) 
+				menuList.RemoveChild(guiElement.lineFrame)
+			end
+		end
+		componentGUIElements = {}
+
+		for key, value in ipairs(itemedit.Components) do
+			if value.Name ~= "CustomInterface" then
+				local functionToCall = functionTable[value.Name]
+				if functionToCall and type(functionToCall) == "function" then
+
+					componentGUIElements[value.Name] = value
+
+					local component = itemedit.Components[key]
+					functionToCall(component, key)
+				end
+			end
+		end
+		Links()
+		if spritedepth then
+			spritedepth.FloatValue = itemedit.SpriteDepth
+		end
+		if rotation then
+			rotation.IntValue = itemedit.Rotation
+		end
+		if scale then
+			scale.FloatValue = itemedit.Scale
+		end
+		if condition then
+			condition.FloatValue = itemedit.Condition
+		end
+		if red then
+			red.IntValue = itemedit.SpriteColor.R
+			green.IntValue = itemedit.SpriteColor.G
+			blue.IntValue = itemedit.SpriteColor.B
+			if alpha then
+				if EditGUI.Settings.alpha == true then
+					alpha.IntValue = itemedit.SpriteColor.A
+				end
+			end
+		end
+		if tagstext then
+			tagstext.Text = itemedit.Tags
+		end
+		if descriptiontext then
+			descriptiontext.Text = itemedit.Description
+		end
+		if noninteractable then
+		noninteractable.Selected = itemedit.NonInteractable
+		end
+		if nonplayerteaminteractable then
+		nonplayerteaminteractable.Selected = itemedit.NonPlayerTeamInteractable
+		end
+		if invulnerabletodamage then
+		invulnerabletodamage.Selected = itemedit.InvulnerableToDamage
+		end
+		if displaysidebysidewhenlinked then
+		displaysidebysidewhenlinked.Selected = itemedit.DisplaySideBySideWhenLinked
+		end
+		if hiddeningame then
+		hiddeningame.Selected = itemedit.HiddenInGame
+		end
+	end
+
+	local miscbuttons = function()
+	
+		local misc = GUI.ListBox(GUI.RectTransform(Vector2(0.93, 0.124), menuContent.RectTransform, GUI.Anchor.BottomCenter))
+		misc.RectTransform.AbsoluteOffset = Point(0, 23)
+
+
+		local misclayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.5), misc.Content.RectTransform), nil)
+		misclayout.isHorizontal = true
+		misclayout.Stretch = true
+		misclayout.RelativeSpacing = 0.004
+
+		local apply = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "Apply")
+		apply.OnClicked = function()
+			EditGUI.networkstart()
+			if Game.IsMultiplayer then
+				local itemeditnetwork = Networking.Start("servermsgstart")
 					itemeditnetwork.WriteUInt16(UShort(itemedit.ID))
+		
 					itemeditnetwork.WriteSingle(itemedit.SpriteDepth)
 					itemeditnetwork.WriteSingle(itemedit.Rotation)
 					itemeditnetwork.WriteSingle(itemedit.Scale)
-					itemeditnetwork.WriteColorR8G8B8(itemedit.SpriteColor)
+					itemeditnetwork.WriteSingle(itemedit.Condition)
 					itemeditnetwork.WriteString(itemedit.Tags)
-					itemeditnetwork.WriteBoolean(itemedit.DisplaySideBySideWhenLinked)
 					itemeditnetwork.WriteBoolean(itemedit.NonInteractable)
-					itemeditnetwork.WriteBoolean(holdable)
-					itemeditnetwork.WriteBoolean(connectionpanel)
-					if holdable == true then
-						itemeditnetwork.WriteBoolean(itemedit.GetComponentString("Holdable").CanBePicked)
-					end
-					if connectionpanel == true then
-						itemeditnetwork.WriteBoolean(itemedit.GetComponentString("ConnectionPanel").Locked)
-					end
-					Networking.Send(itemeditnetwork)
+					itemeditnetwork.WriteBoolean(itemedit.NonPlayerTeamInteractable)
+					itemeditnetwork.WriteBoolean(itemedit.InvulnerableToDamage)
+					itemeditnetwork.WriteBoolean(itemedit.DisplaySideBySideWhenLinked)
+					itemeditnetwork.WriteBoolean(itemedit.HiddenInGame)
+				Networking.Send(itemeditnetwork)
 			end
 		end
-
-
+			
+		linktargets = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "None")
 		linktargets.OnClicked = function()
 			if itemedit1 == nil or itemedit2 == nil then
 				return
 			end
 		
 			if not itemedit1.Linkable then
-				AddMessage(itemedit1.Name .. " is not Linkable", owner)
+				EditGUI.AddMessage(itemedit1.Name .. " is not Linkable", EditGUI.owner)
 				return
 			end
 			if not itemedit2.Linkable then
-				AddMessage(itemedit2.Name .. " is not Linkable", owner)
+				EditGUI.AddMessage(itemedit2.Name .. " is not Linkable", EditGUI.owner)
 				return
 			end
 			
@@ -609,57 +5171,159 @@ end
 			end
 		end
 		
+		local settingsbutton = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), misclayout.RectTransform), "Settings")
+		settingsbutton.OnClicked = function()
+			if settings == true then
+				settings = false
+				if itemedit ~= nil then
+					reloadvalues()
+				end
+				Settingsfunction()
+			else
+				settings = true
+				Settingsfunction()
+			end
+		end
 
-		clear.OnClicked = function()
-			hidden = true
-			check = true
-			valuefalse()
-			connectionpanel = false
-			holdable = false
+		closeButton = GUI.Button(GUI.RectTransform(Vector2(1, 1), misc.Content.RectTransform), "Close", GUI.Alignment.Center)
+		closeButton.OnClicked = function ()
+			frame.ClearChildren()
+			menu = nil
 			itemedit = nil
 			itemedit1 = nil
 			itemedit2 = nil
-			itemname.Text = "None"
-			linktargets.Text = "None"
-			itemeditbutton1.Text = "None"
-			itemeditbutton2.Text = "None"
+			settings = false
 		end
-
 	
-		-- End Of Values
+	end
+
+	local itemeditbuttons = function()
 	
-	end)
+		local targets = GUI.ListBox(GUI.RectTransform(Vector2(0.93, 0.1), menuContent.RectTransform, GUI.Anchor.TopCenter))
+		targets.RectTransform.AbsoluteOffset = Point(0, 17)
+
+		local chooseitem = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.3), targets.Content.RectTransform), "Choose What Item To Edit", nil, nil, GUI.Alignment.Center)
+
+		local itemeditlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.5), targets.Content.RectTransform), nil)
+		itemeditlayout.isHorizontal = true
+		itemeditlayout.Stretch = true
+		itemeditlayout.RelativeSpacing = 0.008
 
 
-	settings.OnClicked = function()
-		if settingsmenu == true then
-			settingsmenu = false
-			hidden = false
-			if itemedit == nil then
-			
-			else
+		itemeditbutton1 = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), itemeditlayout.RectTransform), "None")
+		itemeditbutton1.OnClicked = function()
+			check = true
+			itemeditbutton1.TextColor = Color((10), (10), (100))
+			itemeditbutton2.TextColor = Color((16), (34), (33))
+			if itemedit1 ~= nil then
+				itemname.Text = itemedit1.Name
+				itemedit = itemedit1
 				reloadvalues()
-				valuetrue()
+				settings = false
+				Settingsfunction()
 			end
-			settingmenu()
+		end
+		
+	    itemeditbutton2 = GUI.Button(GUI.RectTransform(Vector2(0.482, 0.2), itemeditlayout.RectTransform), "None")
+		itemeditbutton2.OnClicked = function()	
+			check = false
+			itemeditbutton1.TextColor = Color((16), (34), (33))
+			itemeditbutton2.TextColor = Color((10), (10), (100))
+			if itemedit2 ~= nil then
+				itemname.Text = itemedit2.Name
+				itemedit = itemedit2
+				reloadvalues()
+				settings = false
+				Settingsfunction()
+			end
+		end
+	
+	end
+
+	Hook.Add("Lua_Editor", "luaeditor", function(statusEffect, deltaTime, item)
+		EditGUI.owner = FindClientCharacter(item.ParentInventory.Owner)
+		local target = findtarget.findtarget(item)
+		-- Start Of Checks
+		
+		if item.ParentInventory.Owner ~= Character.Controlled then
+			frame.ClearChildren()
+			itemedit = nil
+			itemedit1 = nil
+			itemedit2 = nil
+			menu = nil
+			return
+		end
+		
+		if Game.IsMultiplayer then
+			if EditGUI.Settings.permissionsetting ~= 0 then
+				if not EditGUI.owner.HasPermission(ClientPermissions[EditGUI.Settings.permissionsetting]) then
+					EditGUI.AddMessage("Insuffient Permissions", EditGUI.owner)
+					return
+				end
+			else
+				if EditGUI.owner.Permissions == 0 then
+					EditGUI.AddMessage("Insuffient Permissions", EditGUI.owner)
+					return
+				end
+			end
+		end
+	
+		if target == nil then
+			if menu == nil then
+				MainComponentfunction()
+				itemeditbuttons()
+				miscbuttons()
+			end
+			EditGUI.AddMessage("No item found", EditGUI.owner)
+			return
+		end
+	
+		if target == itemedit1 or target == itemedit2 then
+			EditGUI.AddMessage("Targeted items cannot be the same", EditGUI.owner)
+			return
+		end
+		
+		if check == true then
+			itemedit1 = target
+			itemedit = itemedit1
 		else
-			settingsmenu = true
-			hidden = true
-			valuefalse()
-			settingmenu()
+			itemedit2 = target
+			itemedit = itemedit2
 		end
-	end
 	
-	tagList = table.concat(findtarget.validTags, ",")
-	EditGUI.targetabletags.text = (tagList)
-	
-	EditGUI.targetabletags.OnTextChangedDelegate = function()
-		findtarget.validTags = {}
-		for tag in string.gmatch(EditGUI.targetabletags.text, "[^,%s]+") do
-			table.insert(findtarget.validTags, tag)
+		if menu == nil then
+			MainComponentfunction()
+			itemeditbuttons()
+			miscbuttons()
 		end
-	end
 	
+		reloadvalues()
+	
+		if itemedit == nil then
+			return
+		end
+	
+		if itemedit2 ~= nil then
+		Links()
+		end
+
+		if check == true then
+			itemedit1 = target
+			itemedit = itemedit1
+			itemeditbutton1.Text = itemedit1.Name
+			itemname.Text = itemedit1.Name
+			itemeditbutton1.TextColor = Color((10), (10), (100))
+			itemeditbutton2.TextColor = Color((16), (34), (33))
+		else
+			itemedit2 = target
+			itemedit = itemedit2
+			itemeditbutton2.Text = itemedit2.Name
+			itemname.Text = itemedit2.Name
+			itemeditbutton1.TextColor = Color((16), (34), (33))
+			itemeditbutton2.TextColor = Color((10), (10), (100))
+		end
+			
+	end)
 	
 	Hook.Patch("Barotrauma.GameScreen", "AddToGUIUpdateList", function()
 		frame.AddToGUIUpdateList()
@@ -668,56 +5332,5 @@ end
 	Hook.Patch("Barotrauma.SubEditorScreen", "AddToGUIUpdateList", function()
 		frame.AddToGUIUpdateList()
 	end)
-		
-	
-	if CLIENT and Game.IsMultiplayer then
-	
-		Networking.Receive("flipxclientnetwork", function (flipx)
-		local itemedit = Entity.FindEntityByID(flipx.ReadUInt16())
-		if itemedit then
-			itemedit.FlipX(false)
-		end
-		end)
-	
-		Networking.Receive("flipyclientnetwork", function (flipy)
-		local itemedit = Entity.FindEntityByID(flipy.ReadUInt16())
-		if itemedit then
-			itemedit.FlipY(false)
-		end
-		end)
-	
-		Networking.Receive("lualinker.add", function (msg)
-			local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
-			local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
-			LinkAdd(itemedit1, itemedit2)
-			if links == true then
-				Links()
-			end
-		end)
-
-		Networking.Receive("lualinker.remove", function (msg)
-			local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
-			local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
-			LinkRemove(itemedit1, itemedit2)
-			if links == true then
-				Links()
-			end
-		end)
-	end
 	
 	
-	if CLIENT and Game.IsMultiplayer then
-		Networking.Receive("updateitem", function (itemupdate)
-			
-			if holdable == true then
-				itemedit.GetComponentString("Holdable").CanBePicked = itemupdate.ReadBoolean()
-			end
-			
-			if connectionpanel == true then
-				itemedit.GetComponentString("ConnectionPanel").Locked = itemupdate.ReadBoolean()
-			end
-			
-		end)
-	end
-	
-end
