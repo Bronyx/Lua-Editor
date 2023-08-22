@@ -5193,6 +5193,7 @@ end
 			itemedit1 = nil
 			itemedit2 = nil
 			settings = false
+			Hook.Remove(keyUpdate, itemmovekey)
 		end
 	
 	end
@@ -5251,6 +5252,7 @@ end
 			itemedit1 = nil
 			itemedit2 = nil
 			menu = nil
+			Hook.Remove(keyUpdate, itemmovekey)
 			return
 		end
 		
@@ -5321,6 +5323,27 @@ end
 			itemname.Text = itemedit2.Name
 			itemeditbutton1.TextColor = Color((16), (34), (33))
 			itemeditbutton2.TextColor = Color((10), (10), (100))
+		end
+	
+		if itemmovekey == nil then
+			Hook.Add("keyUpdate", "itemmovekey", function (keyargs)
+ 				if PlayerInput.KeyDown(Keys.Up) then 
+					itemedit.PositionY = itemedit.PositionY + 1
+				end
+
+				if PlayerInput.KeyDown(Keys.Down) then 
+					itemedit.PositionY = itemedit.PositionY - 1
+				end
+
+				if PlayerInput.KeyDown(Keys.Left) then  
+					itemedit.PositionX = itemedit.PositionX - 1
+				end
+
+				if PlayerInput.KeyDown(Keys.Right) then 
+					itemedit.PositionX = itemedit.PositionX + 1
+				end
+   			
+			end)
 		end
 			
 	end)
