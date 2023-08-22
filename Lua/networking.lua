@@ -107,7 +107,7 @@ local function split(str, separator)
     return result
 end
 
-Networking.Receive("itemupdatenetworking", function (itemupdatenetwork)
+Networking.Receive("itemupdatenetworking", function (itemupdatenetwork,sender)
 	itemupdatestring = itemupdatenetwork.ReadString()
     local values = split(itemupdatestring, "|")
     local ItemString = values[1]
@@ -143,7 +143,7 @@ end)
 
 
 
-Networking.Receive("serversettingsstart", function ()
+Networking.Receive("serversettingsstart", function (sender)
     if not File.Exists(EditGUI.Path .. "/settings.json") then
         File.Write(EditGUI.Path .. "/settings.json", json.serialize(dofile(EditGUI.Path .. "/Lua/defaultsettings.lua")))
     end
@@ -163,7 +163,7 @@ end)
 
 
 
-Networking.Receive("settingsnetworkupdate", function (settingsnetwork)
+Networking.Receive("settingsnetworkupdate", function (settingsnetwork,sender)
     local receivedData = settingsnetwork.ReadString()
     local Settingsupdate = {}
     for key, value in string.gmatch(receivedData, '([^;]+)=([^;]+)') do
@@ -190,7 +190,7 @@ Networking.Receive("settingsnetworkupdate", function (settingsnetwork)
     Networking.Send(settingsnetwork)
 end)
 
-    Networking.Receive("servermsgstart", function (itemeditnetwork)
+    Networking.Receive("servermsgstart", function (itemeditnetwork,sender)
         local itemedit = Entity.FindEntityByID(itemeditnetwork.ReadUInt16())
 		itemedit.SpriteDepth = itemeditnetwork.ReadSingle()
 		itemedit.Rotation = itemeditnetwork.ReadSingle()
@@ -216,7 +216,7 @@ end)
 			Networking.CreateEntityEvent(itemedit, Item.ChangePropertyEventData(itemedit.SerializableProperties[Identifier("HiddenInGame")], itemedit))
 	end)
 
-	Networking.Receive("flipxnetwork", function (mirrorx)
+	Networking.Receive("flipxnetwork", function (mirrorx,sender)
         local itemedit = Entity.FindEntityByID(mirrorx.ReadUInt16())
 		
 		if itemedit then
@@ -229,7 +229,7 @@ end)
 		
 	end)
 
-	Networking.Receive("flipynetwork", function (mirrory)
+	Networking.Receive("flipynetwork", function (mirrory,sender)
         local itemedit = Entity.FindEntityByID(mirrory.ReadUInt16())
 		
 		if itemedit then
@@ -243,7 +243,7 @@ end)
 	end)
 	
 	
-	Networking.Receive("linkremove", function (msg)
+	Networking.Receive("linkremove", function (msg,sender)
 
         local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
         local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
@@ -255,7 +255,7 @@ end)
 		Networking.Send(msg)
 	end)
 
-	Networking.Receive("linkadd", function (msg)
+	Networking.Receive("linkadd", function (msg,sender)
 
         local itemedit1 = Entity.FindEntityByID(msg.ReadUInt16())
         local itemedit2 = Entity.FindEntityByID(msg.ReadUInt16())
