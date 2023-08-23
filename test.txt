@@ -1,5 +1,0 @@
-Hook.Add("keyUpdate", "itemdropkey", function (keyargs)
-    if not PlayerInput.KeyDown(Keys.U) then return end
-    if Character.DisableControls then return end
-    if Character.Controlled == nil or Character.Controlled.Inventory == nil then return end
-end)
