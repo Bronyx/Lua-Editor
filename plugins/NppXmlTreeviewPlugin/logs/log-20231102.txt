@@ -1,0 +1,7 @@
+2023-11-02 23:37:54.723 -05:00 [Warning] Root element is missing.
+System.Xml.XmlException: Root element is missing.
+   at System.Xml.XmlTextReaderImpl.Throw(Exception e)
+   at System.Xml.XmlTextReaderImpl.ParseDocumentContent()
+   at System.Xml.XmlTextReaderImpl.Read()
+   at System.Xml.XmlTextReader.Read()
+   at NppXmlTreeviewPlugin.Parsers.NppXmlNode.TryParse(String xml, String nodeNameAttribute, ILogger logger, NppXmlNode& nppXmlNode)
