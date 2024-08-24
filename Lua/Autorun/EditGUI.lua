@@ -1511,6 +1511,148 @@ end
 		
 	end
 	-- OxygenGenerator Component End --
+	-- Sonar Component Start --
+	local Sonarfunction = function(component, key)
+
+		if EditGUI.Settings.sonar == false then
+			return
+		end
+
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.66), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+
+		local usetransdusers = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Use Transdusers")
+		usetransdusers.Selected = component.UseTransducers
+		usetransdusers.OnSelected = function()
+			component.UseTransducers = usetransdusers.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".UseTransducers", component.UseTransducers)
+			end
+		end
+
+		local centerontransducers = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Center On Transdusers")
+		centerontransducers.Selected = component.CenterOnTransducers
+		centerontransducers.OnSelected = function()
+			component.CenterOnTransducers = centerontransducers.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CenterOnTransducers", component.CenterOnTransducers)
+			end
+		end
+
+		local hasmineralscanner = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Has Mineral Scanner")
+		hasmineralscanner.Selected = component.HasMineralScanner
+		hasmineralscanner.OnSelected = function()
+			component.HasMineralScanner = hasmineralscanner.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".HasMineralScanner", component.HasMineralScanner)
+			end
+		end
+	
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		minvoltagelayout.isHorizontal = true
+		minvoltagelayout.Stretch = true
+		minvoltagelayout.RelativeSpacing = 0.001
+	
+		local minvoltagetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), minvoltagelayout.RectTransform), "Min Voltage", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local minvoltage = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), minvoltagelayout.RectTransform), NumberType.Float)
+		minvoltage.FloatValue = component.MinVoltage
+		minvoltage.OnValueChanged = function()
+			component.MinVoltage = minvoltage.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".MinVoltage", component.MinVoltage)
+			end
+		end
+	
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		powerconsumptionlayout.isHorizontal = true
+		powerconsumptionlayout.Stretch = true
+		powerconsumptionlayout.RelativeSpacing = 0.001
+	
+		local powerconsumptiontext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), powerconsumptionlayout.RectTransform), "Power Consumption", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local powerconsumption = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), powerconsumptionlayout.RectTransform), NumberType.Float)
+		powerconsumption.FloatValue = component.PowerConsumption
+		powerconsumption.OnValueChanged = function()
+			component.PowerConsumption = powerconsumption.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PowerConsumption", component.PowerConsumption)
+			end
+		end
+	
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+	
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end
+
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		vulnerabletoemp.Selected = component.VulnerableToEMP
+		vulnerabletoemp.OnSelected = function()
+			component.VulnerableToEMP = vulnerabletoemp.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".VulnerableToEMP", component.VulnerableToEMP)
+			end
+		end
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+	
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+	
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.Text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.Text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Sonar Component End --
 	-- Repairable Component Start --
 	local Repairablefunction = function(component, key)
 		
@@ -5088,6 +5230,12 @@ end
 			oxygengenerator.OnSelected = function ()
 				EditGUI.Settings.oxygengenerator = oxygengenerator.Selected == true
 			end
+
+			local sonar = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Sonar Component Enabled")
+			sonar.Selected = EditGUI.Settings.sonar
+			sonar.OnSelected = function ()
+				EditGUI.Settings.sonar = sonar.Selected == true
+			end
 			
 			local repairable = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Repairable Component Enabled")
 			repairable.Selected = EditGUI.Settings.repairable
@@ -5192,6 +5340,7 @@ end
 	Deconstructor = Deconstructorfunction,
 	Reactor = Reactorfunction,
 	OxygenGenerator = OxygenGeneratorfunction,
+	Sonar = Sonarfunction,
 	Repairable = Repairablefunction,
 	ItemContainer = ItemContainerfunction,
 	ItemLabel = ItemLabelfunction,

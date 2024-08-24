@@ -62,6 +62,8 @@ settings.reactor = false
 
 settings.oxygengenerator = false
 
+settings.sonar = false
+
 settings.repairable = false
 
 settings.powertransfer = false
