@@ -2194,6 +2194,82 @@ end
 		
 	end
 	-- Item Container Component End --
+	-- Door Component Start --
+	local Doorfunction = function(component, key)
+		if EditGUI.Settings.door == false then
+			return
+		end
+		
+		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
+		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
+
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.5), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		
+		local guiElement = {
+			listBox = List,
+			lineFrame = LineFrame,
+		}
+		table.insert(componentGUIElements, guiElement)
+		
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.172), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		maintext.TextScale = 1.3
+		maintext.TextColor = Color(255,255,255)
+		
+		DrawPickedRequired(component, key, List, 0.138, true, ItemMsgUnauthorizedAccess)
+		DrawEquippedRequired(component, key, List, 0.138, false)
+		
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.138), List.Content.RectTransform), nil)
+		pickingtimelayout.isHorizontal = true
+		pickingtimelayout.Stretch = true
+		pickingtimelayout.RelativeSpacing = 0.001
+		
+		local pickingtimetext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 1), pickingtimelayout.RectTransform), "Picking Time", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local pickingtime = GUI.NumberInput(GUI.RectTransform(Vector2(1.2, 1), pickingtimelayout.RectTransform), NumberType.Float)
+		pickingtime.FloatValue = component.PickingTime
+		pickingtime.OnValueChanged = function()
+			component.PickingTime = pickingtime.FloatValue
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".PickingTime", component.PickingTime)
+			end
+		end	
+	
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.138), List.Content.RectTransform), "Can Be Picked")
+		canbepicked.Selected = component.CanBePicked
+		canbepicked.OnSelected = function()
+			component.CanBePicked = canbepicked.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".CanBePicked", component.CanBePicked)
+			end
+		end
+		
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.138), List.Content.RectTransform), "Allow In-game Editing")
+		allowingameediting.Selected = component.AllowInGameEditing
+		allowingameediting.OnSelected = function()
+			component.AllowInGameEditing = allowingameediting.Selected == true
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".AllowInGameEditing", component.AllowInGameEditing)
+			end
+		end
+		
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.138), List.Content.RectTransform), nil)
+		msglayout.isHorizontal = true
+		msglayout.Stretch = true
+		msglayout.RelativeSpacing = 0.001
+		
+		local msgtext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), msglayout.RectTransform), "Msg", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local msg = GUI.TextBox(GUI.RectTransform(Vector2(1.5, 1), msglayout.RectTransform), "")
+		msg.text = component.Msg
+		msg.OnTextChangedDelegate = function()
+			component.Msg = msg.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".Msg", component.Msg)
+			end
+		end
+		
+	end
+	-- Door Component End --
 	-- Label Component Start --
 	local ItemLabelfunction = function(component, key)
 	
@@ -5368,6 +5444,12 @@ end
 			itemcontainer.Selected = EditGUI.Settings.itemcontainer
 			itemcontainer.OnSelected = function ()
 				EditGUI.Settings.itemcontainer = itemcontainer.Selected == true
+			end	
+			
+			local door = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "Door Component Enabled")
+			door.Selected = EditGUI.Settings.door
+			door.OnSelected = function ()
+				EditGUI.Settings.door = door.Selected == true
 			end
 			
 			local itemlabel = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), settingsList.Content.RectTransform), "ItemLabel Component Enabled")
@@ -5458,6 +5540,7 @@ end
 	Sonar = Sonarfunction,
 	Repairable = Repairablefunction,
 	ItemContainer = ItemContainerfunction,
+	Door = Doorfunction,
 	ItemLabel = ItemLabelfunction,
 	Quality = Qualityfunction,
 	AndComponent = AndComponentfunction,

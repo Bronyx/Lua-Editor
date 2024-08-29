@@ -70,6 +70,8 @@ settings.powertransfer = false
 
 settings.itemcontainer = false
 
+settings.door = false
+
 settings.itemlabel = false
 
 settings.quality = false
