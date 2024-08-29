@@ -1616,7 +1616,7 @@ end
 		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
 		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
 
-		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.66), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.78), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
 		
 		local guiElement = {
 			listBox = List,
@@ -1624,11 +1624,11 @@ end
 		}
 		table.insert(componentGUIElements, guiElement)
 		
-		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.11), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
 		maintext.TextScale = 1.3
 		maintext.TextColor = Color(255,255,255)
 
-		local usetransdusers = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Use Transdusers")
+		local usetransdusers = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), "Use Transdusers")
 		usetransdusers.Selected = component.UseTransducers
 		usetransdusers.OnSelected = function()
 			component.UseTransducers = usetransdusers.Selected == true
@@ -1637,7 +1637,7 @@ end
 			end
 		end
 
-		local centerontransducers = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Center On Transdusers")
+		local centerontransducers = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), "Center On Transdusers")
 		centerontransducers.Selected = component.CenterOnTransducers
 		centerontransducers.OnSelected = function()
 			component.CenterOnTransducers = centerontransducers.Selected == true
@@ -1646,7 +1646,7 @@ end
 			end
 		end
 
-		local hasmineralscanner = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Has Mineral Scanner")
+		local hasmineralscanner = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), "Has Mineral Scanner")
 		hasmineralscanner.Selected = component.HasMineralScanner
 		hasmineralscanner.OnSelected = function()
 			component.HasMineralScanner = hasmineralscanner.Selected == true
@@ -1655,7 +1655,7 @@ end
 			end
 		end
 	
-		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		local minvoltagelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), nil)
 		minvoltagelayout.isHorizontal = true
 		minvoltagelayout.Stretch = true
 		minvoltagelayout.RelativeSpacing = 0.001
@@ -1671,7 +1671,7 @@ end
 			end
 		end
 	
-		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		local powerconsumptionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), nil)
 		powerconsumptionlayout.isHorizontal = true
 		powerconsumptionlayout.Stretch = true
 		powerconsumptionlayout.RelativeSpacing = 0.001
@@ -1687,7 +1687,7 @@ end
 			end
 		end
 	
-		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), nil)
 		pickingtimelayout.isHorizontal = true
 		pickingtimelayout.Stretch = true
 		pickingtimelayout.RelativeSpacing = 0.001
@@ -1703,7 +1703,7 @@ end
 			end
 		end
 
-		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Vulnerable To EMP")
+		local vulnerabletoemp = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), "Vulnerable To EMP")
 		vulnerabletoemp.Selected = component.VulnerableToEMP
 		vulnerabletoemp.OnSelected = function()
 			component.VulnerableToEMP = vulnerabletoemp.Selected == true
@@ -1712,7 +1712,7 @@ end
 			end
 		end
 	
-		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Can Be Picked")
+		local canbepicked = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), "Can Be Picked")
 		canbepicked.Selected = component.CanBePicked
 		canbepicked.OnSelected = function()
 			component.CanBePicked = canbepicked.Selected == true
@@ -1721,7 +1721,7 @@ end
 			end
 		end
 		
-		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), "Allow In-Game Editing")
+		local allowingameediting = GUI.TickBox(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), "Allow In-Game Editing")
 		allowingameediting.Selected = component.AllowInGameEditing
 		allowingameediting.OnSelected = function()
 			component.AllowInGameEditing = allowingameediting.Selected == true
@@ -1730,7 +1730,7 @@ end
 			end
 		end
 	
-		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.1), List.Content.RectTransform), nil)
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.088), List.Content.RectTransform), nil)
 		msglayout.isHorizontal = true
 		msglayout.Stretch = true
 		msglayout.RelativeSpacing = 0.001
