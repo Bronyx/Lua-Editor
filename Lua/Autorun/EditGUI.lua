@@ -57,6 +57,99 @@ end
 	frame = GUI.Frame(GUI.RectTransform(Vector2(1, 1)), nil)
 	frame.CanBeFocused = false
 
+	-- Attribute Draw Functions Start --
+	local DrawRequiredItems = function(component, key, list, height, relatedItemType, fieldName, optional, msgTag)
+		optional = optional or false
+		local relatedItemClass = LuaUserData.CreateStatic("Barotrauma.RelatedItem")
+		
+		local requireditemslayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, height), list.Content.RectTransform), nil)
+		requireditemslayout.isHorizontal = true
+		requireditemslayout.Stretch = true
+		requireditemslayout.RelativeSpacing = 0.001
+	
+		local requireditemstextblock = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), requireditemslayout.RectTransform), fieldName, nil, nil, GUI.Alignment.CenterLeft)
+		local requireditemstext = GUI.TextBox(GUI.RectTransform(Vector2(0.8, 1), requireditemslayout.RectTransform), "")
+		
+		-- for key, value in pairs(component.requiredItems) do	
+			-- print(key, " ", value)
+			-- if value and value[1] then
+				-- print(value[1].joinedIdentifiers)
+			-- end
+		-- end
+		
+		function getRelatedItem()
+			local relatedItemsTable = component.requiredItems[relatedItemType]
+			
+			if relatedItemsTable == nil then
+				return nil
+			end
+			
+			return relatedItemsTable[1]
+		end
+		
+		local relatedItem = getRelatedItem()
+		local joinedIdentifiers = ""
+		if relatedItem ~= nil then
+			joinedIdentifiers = relatedItem.JoinedIdentifiers
+		end
+		requireditemstext.Text = joinedIdentifiers
+		
+		requireditemstext.OnTextChangedDelegate = function()
+			joinedIdentifiers = requireditemstext.Text
+			
+			local shouldRelatedItemExist = joinedIdentifiers ~= ""
+			local hasRelatedItem = relatedItem ~= nil
+			
+			if shouldRelatedItemExist then
+				if not hasRelatedItem then
+					if not msgTag or msgTag == "" or msgTag:match("^%s*$") then
+						msgTag = ""
+					else 
+						msgTag = " msg=\"" .. msgTag .."\""
+					end
+					local requiredItemSampleData = string.format([[<?xml version="1.0" encoding="utf-8"?> 
+<requireditem items="id_captain" type="%s" characterinventoryslottype="None" optional="%s" ignoreineditor="true" excludebroken="true" requireempty="false" excludefullcondition="false" targetslot="-1" allowvariants="true" rotation="0" setactive="false"%s /> 
+]], tostring(relatedItemType), tostring(optional), msgTag)
+					local xml = XDocument.Parse(requiredItemSampleData).Root
+					local contentXml = ContentXElement(nil, xml) -- package is nil
+					
+					relatedItem = relatedItemClass.__new(contentXml, "LuaEditorRequiredItem")
+					local tempRequiredItems = component.requiredItems
+					tempRequiredItems[relatedItemType] = {relatedItem}
+					component.requiredItems = tempRequiredItems
+				end
+				relatedItem.JoinedIdentifiers = joinedIdentifiers
+			else
+				if hasRelatedItem then
+					-- component.requiredItems = {} -- delete other types
+					-- component.requiredItems[relatedItemType] = nil -- doesn't work
+					local tempRequiredItems = {}
+					for key, value in pairs(component.requiredItems) do
+						if (key ~= relatedItemType) then
+							tempRequiredItems[key] = value
+						end
+					end
+					component.requiredItems = tempRequiredItems
+					relatedItem = nil
+				end
+			end
+			
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key ..".RequiredItems", component.requiredItems)
+			end
+		end
+	end
+	
+	local DrawPickedRequired = function(component, key, list, height, optional, msgTag)
+		local relatedItemType = LuaUserData.CreateEnumTable("Barotrauma.RelatedItem+RelationType")
+		DrawRequiredItems(component, key, list, height, relatedItemType.Picked, "Picked Required", msgTag)
+	end
+	
+	local DrawEquippedRequired = function(component, key, list, height, optional, msgTag)
+		local relatedItemType = LuaUserData.CreateEnumTable("Barotrauma.RelatedItem+RelationType")
+		DrawRequiredItems(component, key, list, height, relatedItemType.Equipped, "Equipped Required", optional, msgTag)
+	end
+	-- Attribute Draw Functions End --
 	-- Main Component Start --
 	local MainComponentfunction = function()
 	
@@ -875,7 +968,7 @@ end
 		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
 		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
 	
-		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.41), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.48), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
 		
 		local guiElement = {
 			listBox = List,
@@ -886,6 +979,8 @@ end
 		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.2), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
 		maintext.TextScale = 1.3
 		maintext.TextColor = Color(255,255,255)
+		
+		DrawEquippedRequired(component, key, List, 0.12, false)
 		
 		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.12), List.Content.RectTransform), nil)
 		pickingtimelayout.isHorizontal = true
@@ -1663,7 +1758,7 @@ end
 		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
 		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
 		
-		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.78), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.85), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
 		
 		local guiElement = {
 			listBox = List,
@@ -1675,7 +1770,9 @@ end
 		maintext.TextScale = 1.3
 		maintext.TextColor = Color(255,255,255)
 		
-		local deteriorationspeedlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		DrawEquippedRequired(component, key, List, 0.08, false)
+		
+		local deteriorationspeedlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
 		deteriorationspeedlayout.isHorizontal = true
 		deteriorationspeedlayout.Stretch = true
 		deteriorationspeedlayout.RelativeSpacing = 0.001
@@ -1694,7 +1791,7 @@ end
 			end
 		end
 		
-		local mindeteriorationdelaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		local mindeteriorationdelaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
 		mindeteriorationdelaylayout.isHorizontal = true
 		mindeteriorationdelaylayout.Stretch = true
 		mindeteriorationdelaylayout.RelativeSpacing = 0.001
@@ -1714,7 +1811,7 @@ end
 			end
 		end
 		
-		local maxdeteriorationdelaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		local maxdeteriorationdelaylayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
 		maxdeteriorationdelaylayout.isHorizontal = true
 		maxdeteriorationdelaylayout.Stretch = true
 		maxdeteriorationdelaylayout.RelativeSpacing = 0.001
@@ -1734,7 +1831,7 @@ end
 			end
 		end
 		
-		local mindeteriorationconditionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		local mindeteriorationconditionlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
 		mindeteriorationconditionlayout.isHorizontal = true
 		mindeteriorationconditionlayout.Stretch = true
 		mindeteriorationconditionlayout.RelativeSpacing = 0.001
@@ -1753,7 +1850,7 @@ end
 			end
 		end
 	
-		local repairthresholdlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		local repairthresholdlayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
 		repairthresholdlayout.isHorizontal = true
 		repairthresholdlayout.Stretch = true
 		repairthresholdlayout.RelativeSpacing = 0.001
@@ -1772,7 +1869,7 @@ end
 			end
 		end
 		
-		local fixdurationlowskilllayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		local fixdurationlowskilllayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
 		fixdurationlowskilllayout.isHorizontal = true
 		fixdurationlowskilllayout.Stretch = true
 		fixdurationlowskilllayout.RelativeSpacing = 0.001
@@ -1791,7 +1888,7 @@ end
 			end
 		end
 		
-		local fixdurationhighskilllayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		local fixdurationhighskilllayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
 		fixdurationhighskilllayout.isHorizontal = true
 		fixdurationhighskilllayout.Stretch = true
 		fixdurationhighskilllayout.RelativeSpacing = 0.001
@@ -1828,7 +1925,7 @@ end
 			end
 		end
 	
-		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.09), List.Content.RectTransform), nil)
+		local msglayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.08), List.Content.RectTransform), nil)
 		msglayout.isHorizontal = true
 		msglayout.Stretch = true
 		msglayout.RelativeSpacing = 0.001
@@ -2015,7 +2112,7 @@ end
 		local LineFrame = GUI.Frame(GUI.RectTransform(Vector2(1, 0.1), menuList.Content.RectTransform), nil)
 		local Line = GUI.Frame(GUI.RectTransform(Vector2(1, 1), LineFrame.RectTransform, GUI.Anchor.Center), "HorizontalLine")
 
-		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.4), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
+		local List = GUI.ListBox(GUI.RectTransform(Vector2(1, 0.6), menuList.Content.RectTransform, GUI.Anchor.TopCenter))
 		
 		local guiElement = {
 			listBox = List,
@@ -2023,9 +2120,27 @@ end
 		}
 		table.insert(componentGUIElements, guiElement)
 		
-		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.26), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
+		local maintext = GUI.TextBlock(GUI.RectTransform(Vector2(1, 0.13), List.Content.RectTransform), component.Name, nil, nil, GUI.Alignment.Center)
 		maintext.TextScale = 1.3
 		maintext.TextColor = Color(255,255,255)
+		
+		DrawPickedRequired(component, key, List, 0.18, false, ItemMsgUnauthorizedAccess)
+		
+		local containablerestrictionslayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
+		containablerestrictionslayout.isHorizontal = true
+		containablerestrictionslayout.Stretch = true
+		containablerestrictionslayout.RelativeSpacing = 0.001
+		
+		local containablerestrictionstext = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), containablerestrictionslayout.RectTransform), "Containable Tags", nil, nil, GUI.Alignment.CenterLeft)
+		
+		local containablerestrictions = GUI.TextBox(GUI.RectTransform(Vector2(0.8, 1), containablerestrictionslayout.RectTransform), "")
+		containablerestrictions.text = component.ContainableRestrictions
+		containablerestrictions.OnTextChangedDelegate = function()
+			component.ContainableRestrictions = containablerestrictions.text
+			if Game.IsMultiplayer then
+				Update.itemupdatevalue.fn(itemedit.ID, key .. ".ContainableRestrictions", component.ContainableRestrictions)
+			end
+		end
 		
 		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.18), List.Content.RectTransform), nil)
 		pickingtimelayout.isHorizontal = true
