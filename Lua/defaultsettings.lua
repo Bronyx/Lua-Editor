@@ -2,7 +2,7 @@
 
 local settings = {}
 
-settings.permissionsetting = "0"
+settings.permissionsetting = 0
 
 settings.tagstonottarget = ""
 
