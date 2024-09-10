@@ -96,13 +96,12 @@ end
 			
 			if shouldRelatedItemExist then
 				if not hasRelatedItem then
-					if msgTag == nil or msgTag == "" or (msgTag:match("^%s*$") ~= nil) then
-						msgTag = ""
-					else 
-						msgTag = " msg=\"" .. msgTag .."\""
+					local msgAttribute = ""
+					if msgTag and msgTag:match("^%s*$") == nil then
+						msgAttribute = " msg=\"" .. msgTag .."\""
 					end
 					local requiredItemSampleData = string.format([[<requireditem items="id_captain" type="%s" characterinventoryslottype="None" optional="%s" ignoreineditor="true" excludebroken="true" requireempty="false" excludefullcondition="false" targetslot="-1" allowvariants="true" rotation="0" setactive="false"%s /> 
-]], tostring(relatedItemType), tostring(optional), msgTag)
+]], tostring(relatedItemType), tostring(optional), msgAttribute)
 					local xml = XDocument.Parse(requiredItemSampleData).Root
 					local contentXml = ContentXElement(nil, xml) -- package is nil
 					
