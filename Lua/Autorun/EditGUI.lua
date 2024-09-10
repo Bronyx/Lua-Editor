@@ -5171,8 +5171,8 @@ end
 		
 		if EditGUI.Settings.permissionsetting == nil then
 			permissiondropdown.text = "Above None"
+			EditGUI.Settings.permissionsetting = 0
 		else
-			permissionsetting = EditGUI.Settings.permissionsetting
 			if EditGUI.Settings.permissionsetting == 0 then
 				permissiondropdown.text = "Above None"
 			else
