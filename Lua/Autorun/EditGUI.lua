@@ -70,14 +70,7 @@ end
 		local requireditemstextblock = GUI.TextBlock(GUI.RectTransform(Vector2(0.5, 1), requireditemslayout.RectTransform), fieldName, nil, nil, GUI.Alignment.CenterLeft)
 		local requireditemstext = GUI.TextBox(GUI.RectTransform(Vector2(0.8, 1), requireditemslayout.RectTransform), "")
 		
-		-- for key, value in pairs(component.requiredItems) do	
-			-- print(key, " ", value)
-			-- if value and value[1] then
-				-- print(value[1].joinedIdentifiers)
-			-- end
-		-- end
-		
-		function getRelatedItem()
+		local function getRelatedItem()
 			local relatedItemsTable = component.requiredItems[relatedItemType]
 			
 			if relatedItemsTable == nil then
@@ -95,6 +88,7 @@ end
 		requireditemstext.Text = joinedIdentifiers
 		
 		requireditemstext.OnTextChangedDelegate = function()
+			local relatedItem = getRelatedItem()
 			joinedIdentifiers = requireditemstext.Text
 			
 			local shouldRelatedItemExist = joinedIdentifiers ~= ""
@@ -102,13 +96,12 @@ end
 			
 			if shouldRelatedItemExist then
 				if not hasRelatedItem then
-					if not msgTag or msgTag == "" or msgTag:match("^%s*$") then
+					if msgTag == nil or msgTag == "" or (msgTag:match("^%s*$") ~= nil) then
 						msgTag = ""
 					else 
 						msgTag = " msg=\"" .. msgTag .."\""
 					end
-					local requiredItemSampleData = string.format([[<?xml version="1.0" encoding="utf-8"?> 
-<requireditem items="id_captain" type="%s" characterinventoryslottype="None" optional="%s" ignoreineditor="true" excludebroken="true" requireempty="false" excludefullcondition="false" targetslot="-1" allowvariants="true" rotation="0" setactive="false"%s /> 
+					local requiredItemSampleData = string.format([[<requireditem items="id_captain" type="%s" characterinventoryslottype="None" optional="%s" ignoreineditor="true" excludebroken="true" requireempty="false" excludefullcondition="false" targetslot="-1" allowvariants="true" rotation="0" setactive="false"%s /> 
 ]], tostring(relatedItemType), tostring(optional), msgTag)
 					local xml = XDocument.Parse(requiredItemSampleData).Root
 					local contentXml = ContentXElement(nil, xml) -- package is nil
@@ -124,9 +117,9 @@ end
 					-- component.requiredItems = {} -- delete other types
 					-- component.requiredItems[relatedItemType] = nil -- doesn't work
 					local tempRequiredItems = {}
-					for key, value in pairs(component.requiredItems) do
-						if (key ~= relatedItemType) then
-							tempRequiredItems[key] = value
+					for requiredType, requiredTypeItems in pairs(component.requiredItems) do
+						if (requiredType ~= relatedItemType) then
+							tempRequiredItems[requiredType] = requiredTypeItems
 						end
 					end
 					component.requiredItems = tempRequiredItems
@@ -135,14 +128,14 @@ end
 			end
 			
 			if Game.IsMultiplayer then
-				Update.itemupdatevalue.fn(itemedit.ID, key ..".RequiredItems", component.requiredItems)
+				Update.itemupdatevalue.fn(itemedit.ID, key ..".RequiredItems", component.requiredItems, "RequiredItems")
 			end
 		end
 	end
 	
 	local DrawPickedRequired = function(component, key, list, height, optional, msgTag)
 		local relatedItemType = LuaUserData.CreateEnumTable("Barotrauma.RelatedItem+RelationType")
-		DrawRequiredItems(component, key, list, height, relatedItemType.Picked, "Picked Required", msgTag)
+		DrawRequiredItems(component, key, list, height, relatedItemType.Picked, "Picked Required", optional, msgTag)
 	end
 	
 	local DrawEquippedRequired = function(component, key, list, height, optional, msgTag)
@@ -2124,7 +2117,7 @@ end
 		maintext.TextScale = 1.3
 		maintext.TextColor = Color(255,255,255)
 		
-		DrawPickedRequired(component, key, List, 0.18, false, ItemMsgUnauthorizedAccess)
+		DrawPickedRequired(component, key, List, 0.18, false, "ItemMsgUnauthorizedAccess")
 		
 		local containablerestrictionslayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.145), List.Content.RectTransform), nil)
 		containablerestrictionslayout.isHorizontal = true
@@ -2215,8 +2208,8 @@ end
 		maintext.TextScale = 1.3
 		maintext.TextColor = Color(255,255,255)
 		
-		DrawPickedRequired(component, key, List, 0.138, true, ItemMsgUnauthorizedAccess)
-		DrawEquippedRequired(component, key, List, 0.138, false)
+		DrawPickedRequired(component, key, List, 0.138, true, "ItemMsgUnauthorizedAccess")
+		DrawEquippedRequired(component, key, List, 0.138, true)
 		
 		local pickingtimelayout = GUI.LayoutGroup(GUI.RectTransform(Vector2(1, 0.138), List.Content.RectTransform), nil)
 		pickingtimelayout.isHorizontal = true

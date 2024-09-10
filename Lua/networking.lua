@@ -1,7 +1,29 @@
 network = {}
 
 
+-- Shared Side Start --
 
+local function ConvertStringToRequiredItems(value)
+	local relatedItemClass = LuaUserData.CreateStatic("Barotrauma.RelatedItem")
+	local requiredItems = {}
+	
+	for requiredItemXml in value:gmatch("<[^>]+/>") do
+		local xml = XDocument.Parse(requiredItemXml).Root
+		local contentXml = ContentXElement(nil, xml)
+		local relatedItem = relatedItemClass.__new(contentXml, "LuaEditorRequiredItem")
+		local requiredType = relatedItem.Type
+		
+		if requiredItems[requiredType] == nil then
+			requiredItems[requiredType] = {relatedItem}
+		else
+			table.insert(requiredItems[requiredType], relatedItem)
+		end
+	end
+	
+	return requiredItems
+end
+
+-- Shared Side End --
 -- Client Side Start --
 
 if CLIENT then
@@ -18,18 +40,37 @@ local function ConvertColorToString(value)
     end
 end
 
+local function ConvertRequiredItemsToString(value)
+    if type(value) == "table" then
+		local requiredItemsXMLs = " "
+		for requiredType, requiredTypeItems in pairs(value) do
+			for i, requiredItem in ipairs(requiredTypeItems) do
+				local requiredItemsXML = XElement("requireditem")
+				requiredItem.Save(requiredItemsXML)
+				
+				requiredItemsXMLs = requiredItemsXMLs .. tostring(requiredItemsXML)
+			end
+		end
+		return requiredItemsXMLs
+    else
+        print("failed to convert RequiredItems to string")
+    end
+end
+
 Update = {
 	itemupdatevalue = {
 		{"String", "String", "Number", "Number2"},  -- Three parameters: ItemString, ActionString, Value
 		fn = function(ItemString, ActionString, Value, Value2)
-			if Value2 ~= "Color" then
+			if Value2 == "Color" then
+				itemupdatestring = ItemString .. "|" .. ActionString .. "|" .. ConvertColorToString(Value) .. "|" .. Value2
+			elseif Value2 == "RequiredItems" then
+				itemupdatestring = ItemString .. "|" .. ActionString .. "|" .. ConvertRequiredItemsToString(Value) .. "|" .. Value2
+			else
 				if Value2 then
 					itemupdatestring = ItemString .. "|" .. ActionString .. "|" .. ConvertToString(Value) .. "|" .. ConvertToString(Value2)
 				else
 					itemupdatestring = ItemString .. "|" .. ActionString .. "|" .. ConvertToString(Value)
 				end
-			else
-				itemupdatestring = ItemString .. "|" .. ActionString .. "|" .. ConvertColorToString(Value) .. "|" .. Value2
 			end
 			local itemupdatenetwork = Networking.Start("itemupdatenetworking")
 				itemupdatenetwork.WriteString(itemupdatestring)
@@ -145,21 +186,23 @@ Networking.Receive("itemupdatenetworking", function (itemupdatenetwork,sender)
         if #colorValues == 4 then
             Value = Color(tonumber(colorValues[1]), tonumber(colorValues[2]), tonumber(colorValues[3]), tonumber(colorValues[4]))
 		end
+	elseif ValueString2 == "RequiredItems" then
+		Value = ConvertStringToRequiredItems(ValueString)
 	else
 		Value = tonumber(ValueString) or ValueString
     end
 	local mainAction, subAction = ActionString:match("(.-)%.([^%.]+)$")
+	local valueStringOutput = ValueString or "nil"
 	if mainAction and subAction then
 		local key = tonumber(mainAction) 
 		itemedit.Components[key][subAction] = Value
-		print(sender.Name .. " edited '" .. itemedit.Name .. "' " .. removePeriodsAndNumbers(ActionString) .. " to " .. ValueString)
+		print(sender.Name .. " edited '" .. itemedit.Name .. "' " .. removePeriodsAndNumbers(ActionString) .. " to " .. valueStringOutput)
 	elseif ActionString == "Move" then
 		Value2 = tonumber(ValueString2) or ValueString2 
 		itemedit.Move(Vector2(Value, Value2), false)
-		print(sender.Name .. " moved '" .. itemedit.Name .. "' by x" .. ValueString .. " And y" .. ValueString2)
+		print(sender.Name .. " moved '" .. itemedit.Name .. "' by x" .. valueStringOutput .. " And y" .. ValueString2)
 	else
 		itemedit[ActionString] = Value
-		local valueStringOutput = ValueString or "nil"
 		print(sender.Name .. " edited '" .. itemedit.Name .. "' " .. removePeriodsAndNumbers(ActionString) .. " to " .. valueStringOutput)
 	end
 	local itemupdatetoclient = Networking.Start("itemupdatetoclients")
@@ -386,6 +429,8 @@ if CLIENT and Game.IsMultiplayer then
 			if #colorValues == 4 then
 				Value = Color(tonumber(colorValues[1]), tonumber(colorValues[2]), tonumber(colorValues[3]), tonumber(colorValues[4]))
 			end
+		elseif ValueString2 == "RequiredItems" then
+			Value = ConvertStringToRequiredItems(ValueString)
 		else
 			Value = tonumber(ValueString) or ValueString 
 		end
