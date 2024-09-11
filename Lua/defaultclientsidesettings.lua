@@ -12,6 +12,6 @@ clientsidesettings.movementamount = 1
 
 clientsidesettings.targetitems = false
 
-clientsidesettings.targetparentinventory = nil
+clientsidesettings.targetparentinventory = false
 
 return clientsidesettings
