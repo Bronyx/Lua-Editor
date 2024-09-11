@@ -1,12 +1,10 @@
 EditGUI = {}
 EditGUI.Path = ...
 
-if not Game.IsMultiplayer then
-	if not File.Exists(EditGUI.Path .. "/settings.json") then
-		File.Write(EditGUI.Path .. "/settings.json", json.serialize(dofile(EditGUI.Path .. "/Lua/defaultsettings.lua")))
-	end
-	EditGUI.Settings = json.parse(File.Read(EditGUI.Path .. "/settings.json"))
+if not File.Exists(EditGUI.Path .. "/settings.json") then
+	File.Write(EditGUI.Path .. "/settings.json", json.serialize(dofile(EditGUI.Path .. "/Lua/defaultsettings.lua")))
 end
+EditGUI.Settings = json.parse(File.Read(EditGUI.Path .. "/settings.json"))
 
 if not SERVER then
 	if not File.Exists(EditGUI.Path .. "/clientsidesettings.json") then
